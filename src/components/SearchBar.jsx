@@ -57,7 +57,7 @@ export const SearchBar = () => {
             </div>
 
             {isOpen && results.length > 0 && (
-                <div className="absolute w-full mt-4 glass-panel rounded-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="absolute w-full mt-4 glass-panel rounded-2xl overflow-hidden">
                     <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
                         {results.map((movie) => (
                             <div
