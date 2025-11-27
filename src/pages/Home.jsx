@@ -2,19 +2,7 @@ import React from 'react';
 import { useMovieContext } from '../context/MovieContext';
 import { MovieList } from '../components/MovieList';
 import { SearchBar } from '../components/SearchBar';
-import { Film, Zap, Smile, Heart, Rocket, Skull, Ghost, Video, Camera } from 'lucide-react';
-
-const GENRES = [
-    { id: 'all-time', label: 'All-Time', icon: Film },
-    { id: 'action', label: 'Action', icon: Zap },
-    { id: 'comedy', label: 'Comedy', icon: Smile },
-    { id: 'drama', label: 'Drama', icon: Heart },
-    { id: 'horror', label: 'Horror', icon: Skull },
-    { id: 'scifi', label: 'Sci-Fi', icon: Rocket },
-    { id: 'romance', label: 'Romance', icon: Heart },
-    { id: 'thriller', label: 'Thriller', icon: Ghost },
-    { id: 'documentary', label: 'Documentary', icon: Camera },
-];
+import { GENRES } from '../utils/constants';
 
 export const Home = () => {
     const { activeListId, setActiveListId } = useMovieContext();

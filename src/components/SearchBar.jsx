@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Plus, Film } from 'lucide-react';
+import { Search, Bookmark, Film } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { searchMovies } from '../services/api';
 import { useMovieContext } from '../context/MovieContext';
 
@@ -7,8 +8,9 @@ export const SearchBar = () => {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState([]);
     const [isOpen, setIsOpen] = useState(false);
-    const { activeListId, addMovie } = useMovieContext();
+    const { addMovie } = useMovieContext();
     const wrapperRef = useRef(null);
+    const navigate = useNavigate();
 
     useEffect(() => {
         const fetchMovies = async () => {
@@ -35,10 +37,15 @@ export const SearchBar = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const handleAdd = (movie) => {
-        addMovie(activeListId, movie);
+    const handleNavigateToMovie = (movieId) => {
+        navigate(`/movie/${movieId}`);
         setQuery('');
         setIsOpen(false);
+    };
+
+    const handleAddToWatchlist = (e, movie) => {
+        e.stopPropagation(); // Prevent navigation when clicking watchlist icon
+        addMovie('watchlist', movie);
     };
 
     return (
@@ -50,7 +57,7 @@ export const SearchBar = () => {
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     onFocus={() => query.length >= 2 && setIsOpen(true)}
-                    placeholder="Search for a movie to add..."
+                    placeholder="Search for movies..."
                     className="relative w-full bg-slate-900/80 backdrop-blur-2xl border border-white/10 rounded-2xl py-5 pl-14 pr-6 text-xl text-white placeholder-slate-500 focus:outline-none focus:border-sky-500/30 focus:ring-0 transition-all shadow-2xl"
                 />
                 <Search className="absolute left-5 top-5 text-slate-500 group-focus-within:text-sky-400 transition-colors" size={28} />
@@ -63,7 +70,7 @@ export const SearchBar = () => {
                             <div
                                 key={movie.id}
                                 className="flex items-center gap-4 p-4 hover:bg-white/5 transition-colors cursor-pointer group border-b border-white/5 last:border-0"
-                                onClick={() => handleAdd(movie)}
+                                onClick={() => handleNavigateToMovie(movie.id)}
                             >
                                 {movie.poster_path ? (
                                     <img
@@ -82,8 +89,12 @@ export const SearchBar = () => {
                                     <p className="text-sm text-slate-400 mt-1">{movie.release_date?.split('-')[0]}</p>
                                 </div>
 
-                                <button className="p-2 bg-sky-500/10 text-sky-400 rounded-full opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
-                                    <Plus size={20} />
+                                <button
+                                    onClick={(e) => handleAddToWatchlist(e, movie)}
+                                    className="p-2 bg-sky-500/10 text-sky-400 rounded-full opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0 hover:bg-sky-500/20"
+                                    title="Add to Watchlist"
+                                >
+                                    <Bookmark size={20} />
                                 </button>
                             </div>
                         ))}
