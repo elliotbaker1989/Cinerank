@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useAuth } from './AuthContext';
+import { db } from '../lib/firebase';
+import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 
-const MovieContext = createContext();
+export const MovieContext = createContext();
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const useMovieContext = () => useContext(MovieContext);
@@ -8,6 +11,7 @@ export const useMovieContext = () => useContext(MovieContext);
 const INITIAL_LISTS = {
     'all-time': [],
     'watchlist': [],
+    'favorites': [],
     'action': [],
     'comedy': [],
     'drama': [],
@@ -16,9 +20,12 @@ const INITIAL_LISTS = {
     'romance': [],
     'thriller': [],
     'documentary': [],
+
 };
 
 export const MovieProvider = ({ children }) => {
+    const { user } = useAuth();
+
     // Load from local storage or use initial state
     const [lists, setLists] = useState(() => {
         const saved = localStorage.getItem('cinerank-lists');
@@ -27,9 +34,53 @@ export const MovieProvider = ({ children }) => {
 
     const [activeListId, setActiveListId] = useState('all-time');
 
+    const [ratings, setRatings] = useState(() => {
+        const saved = localStorage.getItem('cinerank-ratings');
+        return saved ? JSON.parse(saved) : {};
+    });
+
+    // Sync with Firestore when User logs in
+    useEffect(() => {
+        if (!user) return;
+
+        const userDocRef = doc(db, 'users', user.uid);
+        const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                if (data.lists) setLists(data.lists);
+                if (data.ratings) setRatings(data.ratings);
+            }
+        });
+
+        return () => unsubscribe();
+    }, [user]);
+
+    // Save to Local Storage
     useEffect(() => {
         localStorage.setItem('cinerank-lists', JSON.stringify(lists));
     }, [lists]);
+
+    useEffect(() => {
+        localStorage.setItem('cinerank-ratings', JSON.stringify(ratings));
+    }, [ratings]);
+
+    // Save to Firestore when data changes (if logged in)
+    useEffect(() => {
+        if (!user) return;
+        const saveToFirestore = async () => {
+            try {
+                await setDoc(doc(db, 'users', user.uid), {
+                    lists,
+                    ratings
+                }, { merge: true });
+            } catch (error) {
+                console.error("Error saving to Firestore:", error);
+            }
+        };
+        // Debounce could be good here, but for now simple effect
+        const timeoutId = setTimeout(saveToFirestore, 1000);
+        return () => clearTimeout(timeoutId);
+    }, [lists, ratings, user]);
 
     const addMovie = (listId, movie) => {
         setLists(prev => {
@@ -60,6 +111,23 @@ export const MovieProvider = ({ children }) => {
         }));
     };
 
+    const rateMovie = (movieId, rating) => {
+        setRatings(prev => {
+            // If clicking the same rating, toggle it off (remove rating)
+            if (prev[movieId] === rating) {
+                const newRatings = { ...prev };
+                delete newRatings[movieId];
+                return newRatings;
+            }
+            return {
+                ...prev,
+                [movieId]: rating
+            };
+        });
+    };
+
+    const getMovieRating = (movieId) => ratings[movieId];
+
     return (
         <MovieContext.Provider value={{
             lists,
@@ -67,7 +135,10 @@ export const MovieProvider = ({ children }) => {
             setActiveListId,
             addMovie,
             removeMovie,
-            reorderList
+            reorderList,
+            ratings,
+            rateMovie,
+            getMovieRating
         }}>
             {children}
         </MovieContext.Provider>

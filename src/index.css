@@ -72,3 +72,44 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
 }
+
+/* Toast Animations */
+@keyframes bounce-in-right {
+  0% {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  60% {
+    opacity: 1;
+    transform: translateX(-20px);
+  }
+  80% {
+    transform: translateX(10px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes bounce-out-right {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  20% {
+    opacity: 1;
+    transform: translateX(-20px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+.animate-bounce-in {
+  animation: bounce-in-right 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-bounce-out {
+  animation: bounce-out-right 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}

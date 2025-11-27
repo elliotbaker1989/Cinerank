@@ -3,9 +3,12 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, X, Star } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useMovieContext } from '../context/MovieContext';
+import RatingControls from './RatingControls';
 
 const MovieCard = ({ movie, index, listId, onRemove }) => {
     const navigate = useNavigate();
+    const { rateMovie, getMovieRating } = useMovieContext();
     const {
         attributes,
         listeners,
@@ -64,6 +67,17 @@ const MovieCard = ({ movie, index, listId, onRemove }) => {
                         {movie.vote_average.toFixed(1)}
                     </span>
                 </div>
+            </div>
+
+            {/* Rating Controls */}
+            <div className="mr-4 hidden sm:block" onClick={(e) => e.stopPropagation()}>
+                <RatingControls
+                    movieId={movie.id}
+                    userRating={getMovieRating(movie.id)}
+                    onRate={rateMovie}
+                    size={14}
+                    className="bg-slate-900/50 border-white/5 p-0.5"
+                />
             </div>
 
             {/* Actions */}

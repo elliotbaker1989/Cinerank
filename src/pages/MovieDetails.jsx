@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Plus, Star, Play, List, ThumbsUp, ThumbsDown, Clock, Calendar, Film, X } from 'lucide-react';
+import RatingControls from '../components/RatingControls';
 import { getMovieDetails, getMovieVideos } from '../services/api';
 import { useMovieContext } from '../context/MovieContext';
 import { GENRE_ID_MAP, GENRES } from '../utils/constants';
@@ -8,7 +9,7 @@ import { GENRE_ID_MAP, GENRES } from '../utils/constants';
 export const MovieDetails = () => {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { addMovie } = useMovieContext();
+    const { addMovie, rateMovie, getMovieRating } = useMovieContext();
     const [movie, setMovie] = useState(null);
     const [videos, setVideos] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -115,6 +116,16 @@ export const MovieDetails = () => {
                                     </div>
                                     <div className="text-[10px] text-slate-400">From viewers who share your taste</div>
                                 </div>
+                            </div>
+
+                            {/* User Rating Controls */}
+                            <div className="flex flex-col gap-1">
+                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest ml-2">Rate</span>
+                                <RatingControls
+                                    movieId={movie.id}
+                                    userRating={getMovieRating(movie.id)}
+                                    onRate={rateMovie}
+                                />
                             </div>
                         </div>
 

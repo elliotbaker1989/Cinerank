@@ -1,11 +1,24 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useMovieContext } from '../context/MovieContext';
 import { MovieList } from '../components/MovieList';
 import { SearchBar } from '../components/SearchBar';
 import { GENRES } from '../utils/constants';
+import { getTrendingMovies } from '../services/api';
+import { Plus } from 'lucide-react';
 
 export const Home = () => {
-    const { activeListId, setActiveListId } = useMovieContext();
+    const { activeListId, setActiveListId, addMovie, lists } = useMovieContext();
+    const [trendingMovies, setTrendingMovies] = useState([]);
+
+    useEffect(() => {
+        const fetchTrending = async () => {
+            const movies = await getTrendingMovies();
+            setTrendingMovies(movies);
+        };
+        fetchTrending();
+    }, []);
+
+    const activeList = lists[activeListId] || [];
 
     return (
         <main className="space-y-12">
@@ -53,10 +66,34 @@ export const Home = () => {
                     </span>
                 </div>
 
-                {/* Topic Search Bar Placeholder */}
-                {/* <SearchBar topicMode={true} /> */}
-
                 <MovieList listId={activeListId} />
+
+                {/* Trending Suggestions (Only if list is empty) */}
+                {activeList.length === 0 && trendingMovies.length > 0 && (
+                    <div className="mt-12 pt-12 border-t border-white/5">
+                        <h3 className="text-2xl font-bold text-white mb-6">Trending Now</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                            {trendingMovies.slice(0, 5).map(movie => (
+                                <div key={movie.id} className="group relative aspect-[2/3] rounded-xl overflow-hidden cursor-pointer">
+                                    <img
+                                        src={movie.poster_path}
+                                        alt={movie.title}
+                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                    />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
+                                        <h4 className="text-white font-bold text-sm line-clamp-2">{movie.title}</h4>
+                                        <button
+                                            onClick={() => addMovie(activeListId, movie)}
+                                            className="mt-2 w-full py-2 bg-sky-500 hover:bg-sky-400 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1 transition-colors"
+                                        >
+                                            <Plus size={14} /> Add
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
         </main>
     );
