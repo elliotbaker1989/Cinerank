@@ -61,8 +61,15 @@ body {
   }
 
   .font-outline-2 {
-    -webkit-text-stroke: 2px rgba(255, 255, 255, 0.5);
+    font-family: var(--font-display);
+    -webkit-text-stroke: 1px rgba(255, 255, 255, 0.5);
     color: transparent;
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.05) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    text-shadow: 0 0 30px rgba(255, 255, 255, 0.1);
+    font-variant-numeric: lining-nums;
+    font-feature-settings: "lnum";
   }
 }
 

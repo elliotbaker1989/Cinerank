@@ -42,6 +42,14 @@ export const Top10Slider = ({ availability, activeProviderFilters }) => {
         return false;
     }).slice(0, 10);
 
+    const sliderRef = React.useRef(null);
+
+    useEffect(() => {
+        if (sliderRef.current) {
+            sliderRef.current.scrollLeft = 0;
+        }
+    }, [filteredMovies]);
+
     if (loading || filteredMovies.length === 0) return null;
 
     return (
@@ -51,7 +59,10 @@ export const Top10Slider = ({ availability, activeProviderFilters }) => {
                 {availability?.subs ? 'Trending on Your Subscriptions' : 'Top 10 Trending This Week'}
             </h3>
 
-            <div className="flex overflow-x-auto gap-6 pb-8 pt-4 pr-4 snap-x scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+            <div
+                ref={sliderRef}
+                className="flex overflow-x-auto overflow-y-hidden gap-6 pb-12 pt-4 px-12 snap-x scroll-pl-12 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent"
+            >
                 {filteredMovies.map((movie, index) => (
                     <div
                         key={movie.uniqueId}
