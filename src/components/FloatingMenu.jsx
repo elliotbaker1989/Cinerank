@@ -190,6 +190,14 @@ const FloatingMenu = ({ onSignInClick }) => {
                                     )}
 
                                     <Link
+                                        to="/activity"
+                                        onClick={() => setShowProfileMenu(false)}
+                                        className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-white hover:bg-white/10 rounded-xl transition-colors"
+                                    >
+                                        <Activity size={16} className="text-sky-400" /> My Activity
+                                    </Link>
+
+                                    <Link
                                         to="/settings"
                                         onClick={() => setShowProfileMenu(false)}
                                         className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-white hover:bg-white/10 rounded-xl transition-colors"

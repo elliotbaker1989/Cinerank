@@ -1,7 +1,7 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { db } from '../lib/firebase';
-import { doc, onSnapshot, setDoc, deleteDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, deleteDoc, deleteField } from 'firebase/firestore';
 import { GENRE_ID_MAP } from '../utils/constants';
 
 export const MovieContext = createContext();
@@ -40,6 +40,22 @@ export const MovieProvider = ({ children }) => {
         return saved ? JSON.parse(saved) : {};
     });
 
+    const [watched, setWatched] = useState(() => {
+        const saved = localStorage.getItem('cinerank-watched');
+        return saved ? JSON.parse(saved) : {};
+    });
+
+    // Refs to track current state for onSnapshot comparison and immediate saves
+    const listsRef = useRef(lists);
+    const ratingsRef = useRef(ratings);
+    const watchedRef = useRef(watched);
+
+    useEffect(() => {
+        listsRef.current = lists;
+        ratingsRef.current = ratings;
+        watchedRef.current = watched;
+    }, [lists, ratings, watched]);
+
     // Sync with Firestore when User logs in
     useEffect(() => {
         if (!user) return;
@@ -48,12 +64,16 @@ export const MovieProvider = ({ children }) => {
         const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                // Prevent infinite loop: only update if data actually changed
-                if (data.lists && JSON.stringify(data.lists) !== JSON.stringify(lists)) {
+
+                // Use refs to compare with CURRENT state, not stale closure state
+                if (data.lists && JSON.stringify(data.lists) !== JSON.stringify(listsRef.current)) {
                     setLists(data.lists);
                 }
-                if (data.ratings && JSON.stringify(data.ratings) !== JSON.stringify(ratings)) {
+                if (data.ratings && JSON.stringify(data.ratings) !== JSON.stringify(ratingsRef.current)) {
                     setRatings(data.ratings);
+                }
+                if (data.watched && JSON.stringify(data.watched) !== JSON.stringify(watchedRef.current)) {
+                    setWatched(data.watched);
                 }
             }
         });
@@ -70,27 +90,34 @@ export const MovieProvider = ({ children }) => {
         localStorage.setItem('cinerank-ratings', JSON.stringify(ratings));
     }, [ratings]);
 
-    // Save to Firestore when data changes (if logged in)
+    useEffect(() => {
+        localStorage.setItem('cinerank-watched', JSON.stringify(watched));
+    }, [watched]);
+
+    // Debounced save for bulk updates (backup)
     useEffect(() => {
         if (!user) return;
         const saveToFirestore = async () => {
             try {
-                // Sanitize data before saving
                 const sanitizedLists = lists ? JSON.parse(JSON.stringify(lists)) : {};
                 const sanitizedRatings = ratings ? JSON.parse(JSON.stringify(ratings)) : {};
+                const sanitizedWatched = watched ? JSON.parse(JSON.stringify(watched)) : {};
 
                 await setDoc(doc(db, 'users', user.uid), {
                     lists: sanitizedLists,
-                    ratings: sanitizedRatings
+                    ratings: sanitizedRatings,
+                    watched: sanitizedWatched
                 }, { merge: true });
             } catch (error) {
                 console.error("Error saving to Firestore:", error);
             }
         };
-        // Debounce could be good here, but for now simple effect
-        const timeoutId = setTimeout(saveToFirestore, 1000);
+        const timeoutId = setTimeout(saveToFirestore, 2000); // Increased debounce since we have immediate saves
         return () => clearTimeout(timeoutId);
-    }, [lists, ratings, user]);
+    }, [lists, ratings, watched, user]);
+
+    // ... (addMovie, removeMovie, etc. - keep existing logic but maybe add immediate save if needed later)
+    // For now, we focus on toggleWatched and rateMovie as requested.
 
     const addMovie = (targetListId, movie) => {
         setLists(prev => {
@@ -259,34 +286,24 @@ export const MovieProvider = ({ children }) => {
             };
         });
 
-        // Save to global 'ratings' collection for Admin Analytics
         if (user) {
-            console.log("Attempting to save global rating...", { movieId: movie.id, rating, userId: user.uid });
             try {
+                // 1. Save to global 'ratings' collection
                 const ratingId = `${user.uid}_${movie.id}`;
                 const ratingDocRef = doc(db, 'ratings', ratingId);
 
-                // If removing rating (toggle off)
-                if (ratings[movie.id] === rating) {
-                    console.log("Removing rating from global collection");
-                    // We might want to delete the doc, or mark as deleted. 
-                    // For simplicity, let's delete it.
-                    // Import deleteDoc if needed, or just set rating to null?
-                    // Let's assume we just overwrite or ignore deletion for now to keep history?
-                    // Actually, if I untoggle, I should probably remove it from stats.
-                    // But for MVP let's just focus on ADDING/UPDATING.
-                    // If I untoggle, I'll set 'active' to false or delete.
-                    // Let's just set it.
+                if (ratingsRef.current[movie.id] === rating) {
+                    // Toggle off
                     await setDoc(ratingDocRef, {
                         userId: user.uid,
                         movieId: movie.id,
-                        rating: null, // Mark as removed
+                        rating: null,
                         timestamp: new Date().toISOString(),
                         movieTitle: movie.title,
                         posterPath: movie.poster_path
                     });
                 } else {
-                    console.log("Saving new rating to global collection");
+                    // New rating
                     await setDoc(ratingDocRef, {
                         userId: user.uid,
                         movieId: movie.id,
@@ -296,12 +313,81 @@ export const MovieProvider = ({ children }) => {
                         posterPath: movie.poster_path
                     });
                 }
-                console.log("Successfully saved global rating!");
+
+                // 2. IMMEDIATE SYNC to users/{uid} using ATOMIC updates
+                if (ratingsRef.current[movie.id] === rating) {
+                    // Removing rating
+                    await setDoc(doc(db, 'users', user.uid), {
+                        ratings: {
+                            [movie.id]: deleteField()
+                        }
+                    }, { merge: true });
+                } else {
+                    // Adding/Updating rating
+                    await setDoc(doc(db, 'users', user.uid), {
+                        ratings: {
+                            [movie.id]: rating
+                        }
+                    }, { merge: true });
+                }
+
             } catch (error) {
-                console.error("Error saving global rating:", error);
+                console.error("Error saving rating:", error);
             }
-        } else {
-            console.warn("User not logged in, skipping global rating save");
+        }
+    };
+
+    const toggleWatched = async (movie) => {
+        const isWatched = !!watched[movie.id];
+        const newStatus = !isWatched;
+
+        // Optimistic update
+        setWatched(prev => {
+            const newState = { ...prev };
+            if (newStatus) {
+                newState[movie.id] = new Date().toISOString();
+            } else {
+                delete newState[movie.id];
+            }
+            return newState;
+        });
+
+        if (user) {
+            try {
+                // 1. Global Sync (watched collection)
+                const docId = `${user.uid}_${movie.id}`;
+                const docRef = doc(db, 'watched', docId);
+
+                if (newStatus) {
+                    await setDoc(docRef, {
+                        userId: user.uid,
+                        movieId: movie.id,
+                        movieTitle: movie.title,
+                        posterPath: movie.poster_path,
+                        timestamp: new Date().toISOString()
+                    });
+                } else {
+                    await deleteDoc(docRef);
+                }
+
+                // 2. IMMEDIATE SYNC to users/{uid} using ATOMIC updates
+                if (newStatus) {
+                    await setDoc(doc(db, 'users', user.uid), {
+                        watched: {
+                            [movie.id]: new Date().toISOString()
+                        }
+                    }, { merge: true });
+                } else {
+                    await setDoc(doc(db, 'users', user.uid), {
+                        watched: {
+                            [movie.id]: deleteField()
+                        }
+                    }, { merge: true });
+                }
+
+            } catch (error) {
+                console.error("Error syncing watched status:", error);
+            }
         }
     };
 
@@ -320,7 +406,9 @@ export const MovieProvider = ({ children }) => {
             reorderList,
             ratings,
             rateMovie,
-            getMovieRating
+            getMovieRating,
+            watched,
+            toggleWatched
         }}>
             {children}
         </MovieContext.Provider>

@@ -1,21 +1,46 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Star, Calendar, Ticket, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Plus, Star, Calendar, Ticket, ThumbsUp, ThumbsDown, Eye, EyeOff } from 'lucide-react';
 import { useMovieContext } from '../context/MovieContext';
 import { useToast } from '../context/ToastContext';
 import { formatReleaseDate, isInCinema } from '../utils/dateUtils';
 import { getMovieProviders } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
+import { generateMovieUrl } from '../utils/seoUtils';
+
 export const PosterMovieCard = ({ movie, rank, rankList, userRating }) => {
     const navigate = useNavigate();
-    const { addMovie } = useMovieContext();
+    const { addMovie, watched, toggleWatched, rateMovie } = useMovieContext();
     const { showToast } = useToast();
     const { selectedProviders } = useAuth(); // Get user's subscriptions
 
     const [providers, setProviders] = React.useState(movie.providers || []);
     const [loadingProviders, setLoadingProviders] = React.useState(false);
     const [hasFetchedProviders, setHasFetchedProviders] = React.useState(!!movie.providers);
+
+    const isWatched = !!watched[movie.id];
+    const [showRatingOptions, setShowRatingOptions] = useState(false);
+    const ratingTimeoutRef = useRef(null);
+
+    // Auto-hide rating options after 3 seconds of inactivity
+    useEffect(() => {
+        if (showRatingOptions) {
+            ratingTimeoutRef.current = setTimeout(() => {
+                setShowRatingOptions(false);
+            }, 3000);
+        }
+        return () => {
+            if (ratingTimeoutRef.current) clearTimeout(ratingTimeoutRef.current);
+        };
+    }, [showRatingOptions]);
+
+    const handleRate = (e, rating) => {
+        e.stopPropagation();
+        rateMovie(movie, rating);
+        setShowRatingOptions(false);
+        showToast(`Rated ${rating === 'double_up' ? 'Double Thumbs Up' : rating === 'up' ? 'Thumbs Up' : 'Thumbs Down'}`, 'success');
+    };
 
     const handleMouseEnter = async () => {
         if (!hasFetchedProviders && !loadingProviders) {
@@ -62,20 +87,27 @@ export const PosterMovieCard = ({ movie, rank, rankList, userRating }) => {
     };
 
     const handleMovieClick = () => {
-        navigate(`/movie/${movie.id}`);
+        navigate(generateMovieUrl(movie.id, movie.title));
     };
 
     const handleAddToWatchlist = (e) => {
         e.stopPropagation();
         addMovie('watchlist', movie);
-        showToast({
-            message: `Added "${movie.title}" to Watchlist`,
-            type: 'success',
-            action: {
-                label: 'View',
-                onClick: () => navigate('/watchlist')
-            }
-        });
+        showToast(`Added "${movie.title}" to Watchlist`, 'success');
+    };
+
+    const handleToggleWatched = (e) => {
+        e.stopPropagation();
+        toggleWatched(movie);
+        const newState = !isWatched;
+
+        if (newState) {
+            setShowRatingOptions(true);
+        } else {
+            setShowRatingOptions(false);
+        }
+
+        showToast(`${movie.title} marked as ${newState ? 'Seen' : 'Not Seen'}`, 'info');
     };
 
     return (
@@ -112,6 +144,13 @@ export const PosterMovieCard = ({ movie, rank, rankList, userRating }) => {
                 </div>
             )}
 
+            {/* Watched Badge (Top Right) - Optional visual indicator when not hovering */}
+            {isWatched && (
+                <div className="absolute top-2 right-2 z-10 bg-black/60 backdrop-blur-md p-1.5 rounded-full border border-white/20">
+                    <Eye size={12} className="text-green-400" />
+                </div>
+            )}
+
             {/* Role Badges (Overlay) */}
             {movie.roles && movie.roles.length > 0 && (
                 <div className="absolute top-2 right-2 flex flex-col gap-1 z-10">
@@ -127,6 +166,15 @@ export const PosterMovieCard = ({ movie, rank, rankList, userRating }) => {
                 </div>
             )}
 
+            {/* Cinema Ticket Badge */}
+            {isInCinema(movie.release_date) && (
+                <div className={`absolute top-2 ${isWatched || (movie.roles && movie.roles.length > 0) ? 'right-8' : 'right-2'} z-10`}>
+                    <div className="bg-amber-500/90 text-white p-1.5 rounded-full shadow-lg border border-white/20 backdrop-blur-md" title="In Cinema">
+                        <Ticket size={12} fill="currentColor" className="text-white" />
+                    </div>
+                </div>
+            )}
+
             {/* Hover Overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3">
                 <h4 className="text-white font-bold text-sm line-clamp-2 mb-2 leading-tight">
@@ -134,11 +182,11 @@ export const PosterMovieCard = ({ movie, rank, rankList, userRating }) => {
                 </h4>
 
                 {/* Watch Providers */}
-                <div className="flex justify-center gap-2 mb-3 min-h-[24px]">
-                    {loadingProviders ? (
-                        <div className="w-4 h-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
-                    ) : (
-                        sortedProviders.length > 0 && (
+                {(loadingProviders || sortedProviders.length > 0) && (
+                    <div className="flex justify-center gap-2 mb-3 min-h-[24px]">
+                        {loadingProviders ? (
+                            <div className="w-4 h-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+                        ) : (
                             <div className="flex justify-center gap-2">
                                 {sortedProviders.slice(0, 4).map(provider => (
                                     <div key={provider.name} className={`relative group/provider transition-all duration-300 ${provider.isSubscribed ? 'z-10 scale-110' : ''}`}>
@@ -159,16 +207,78 @@ export const PosterMovieCard = ({ movie, rank, rankList, userRating }) => {
                                     </div>
                                 ))}
                             </div>
-                        )
-                    )}
-                </div>
+                        )}
+                    </div>
+                )}
 
-                <button
-                    onClick={handleAddToWatchlist}
-                    className="w-full py-2 bg-white/10 hover:bg-sky-500 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all backdrop-blur-sm border border-white/10 hover:border-sky-500 mb-2"
-                >
-                    <Plus size={14} /> Watchlist
-                </button>
+                {/* Action Buttons Row */}
+                <div className="flex gap-2 mb-2">
+                    <button
+                        onClick={handleAddToWatchlist}
+                        className={`${showRatingOptions ? 'flex-none w-[34px] px-0' : 'flex-[3]'} py-2 bg-white/10 hover:bg-sky-500 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all duration-300 backdrop-blur-sm border border-white/10 hover:border-sky-500 overflow-hidden`}
+                        title="Add to Watchlist"
+                    >
+                        <Plus size={14} />
+                        <span className={`transition-all duration-300 ${showRatingOptions ? 'w-0 opacity-0 hidden' : 'w-auto opacity-100'}`}>Watchlist</span>
+                    </button>
+
+                    <div
+                        className={`flex-1 relative h-[34px] flex items-center justify-end gap-1 transition-all duration-300 ease-out ${showRatingOptions ? 'flex-[4]' : ''}`}
+                        onMouseEnter={() => {
+                            if (ratingTimeoutRef.current) clearTimeout(ratingTimeoutRef.current);
+                        }}
+                        onMouseLeave={() => {
+                            if (showRatingOptions) {
+                                ratingTimeoutRef.current = setTimeout(() => {
+                                    setShowRatingOptions(false);
+                                }, 1000);
+                            }
+                        }}
+                    >
+                        {/* Rating Options - Expands to the left */}
+                        <div className={`flex items-center justify-between gap-1 overflow-hidden transition-all duration-300 ${showRatingOptions ? 'flex-1 opacity-100' : 'w-0 opacity-0'}`}>
+                            <div className="flex items-center justify-between w-full px-1 bg-slate-900/90 backdrop-blur-md rounded-lg border border-white/20 h-full">
+                                <button
+                                    onClick={(e) => handleRate(e, 'double_up')}
+                                    className="p-1.5 hover:bg-purple-500/20 rounded-md text-purple-400 transition-colors hover:scale-110 flex items-center justify-center h-full"
+                                    title="Double Thumbs Up"
+                                >
+                                    <div className="flex -space-x-1">
+                                        <ThumbsUp size={12} fill="currentColor" />
+                                        <ThumbsUp size={12} fill="currentColor" />
+                                    </div>
+                                </button>
+                                <button
+                                    onClick={(e) => handleRate(e, 'up')}
+                                    className="p-1.5 hover:bg-green-500/20 rounded-md text-green-400 transition-colors hover:scale-110 flex items-center justify-center h-full"
+                                    title="Thumbs Up"
+                                >
+                                    <ThumbsUp size={14} fill="currentColor" />
+                                </button>
+                                <button
+                                    onClick={(e) => handleRate(e, 'down')}
+                                    className="p-1.5 hover:bg-red-500/20 rounded-md text-red-400 transition-colors hover:scale-110 flex items-center justify-center h-full"
+                                    title="Thumbs Down"
+                                >
+                                    <ThumbsDown size={14} fill="currentColor" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Seen Button - Always visible, shrinks when options shown */}
+                        <button
+                            onClick={handleToggleWatched}
+                            className={`h-full rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all duration-300 backdrop-blur-sm border border-white/10 z-20 ${showRatingOptions ? 'w-[40px] flex-none' : 'w-full flex-1'
+                                } ${isWatched
+                                    ? 'bg-green-500/20 text-green-400 border-green-500/50 hover:bg-green-500/30'
+                                    : 'bg-white/10 text-slate-400 hover:bg-white/20 hover:text-white'
+                                }`}
+                        >
+                            {isWatched ? <Eye size={14} /> : <EyeOff size={14} />}
+                            <span className={`text-[6px] uppercase font-bold leading-none tracking-wider transition-opacity duration-300 ${showRatingOptions ? 'opacity-0 hidden' : 'opacity-100'}`}>{isWatched ? 'Seen' : 'Not Seen'}</span>
+                        </button>
+                    </div>
+                </div>
 
                 {/* Rank Detail on Hover */}
                 {rank && (
@@ -203,6 +313,7 @@ export const PosterMovieCard = ({ movie, rank, rankList, userRating }) => {
                         </div>
                     </div>
                 )}
+
             </div>
         </div>
     );

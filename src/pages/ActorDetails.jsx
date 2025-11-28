@@ -9,6 +9,8 @@ import { useAuth } from '../context/AuthContext';
 
 import { StatsCard } from '../components/StatsCard';
 import { SubscriptionFilter } from '../components/SubscriptionFilter';
+import SEO from '../components/SEO';
+import { generateMovieUrl } from '../utils/seoUtils';
 
 import { PosterMovieCard } from '../components/PosterMovieCard';
 
@@ -70,6 +72,7 @@ const ActorDetails = () => {
                     getPersonTvCredits(id)
                 ]);
                 setPerson(personData);
+
                 // Filter out non-acting roles (Self, Documentary, etc.)
                 const isValidCredit = (credit) => {
                     // 1. Filter out Documentaries (Genre ID 99)
@@ -107,61 +110,58 @@ const ActorDetails = () => {
                     return new Date(b.release_date) - new Date(a.release_date);
                 });
 
-                setCredits(sortedCredits);
-                setCreditsData(sortedCredits);
-                setLoading(false); // Show page content immediately
-
-                // Fetch collaborators in background (heavier operation)
-                const collaboratorsData = await getPersonCollaborators(id, sortedCredits);
-                setCollaborators(collaboratorsData);
+                // Fetch collaborators in background
+                getPersonCollaborators(id, sortedCredits).then(setCollaborators);
 
                 // Fetch real stats (budget/revenue) for all movies to populate StatsCard and List Items accurately
-                // We filter for movies with significant vote count to avoid junk, but for "all cards" we might want all.
-                // Let's keep the vote count filter to avoid fetching details for very obscure stuff that likely has no data anyway,
-                // but increase the limit or remove it.
-                // Actually, let's just fetch for everything in the sorted list.
                 const moviesToFetch = sortedCredits;
+                let finalCredits = sortedCredits;
 
                 if (moviesToFetch.length > 0) {
-                    const details = await getMoviesDetails(moviesToFetch.map(m => m.id));
+                    try {
+                        const details = await getMoviesDetails(moviesToFetch.map(m => m.id));
 
-                    // Create a map of id -> details
-                    const detailsMap = new Map(details.map(d => [d.id, d]));
+                        // Create a map of id -> details
+                        const detailsMap = new Map(details.map(d => [d.id, d]));
 
-                    // Update credits with real budget/revenue AND status
-                    const updatedCredits = sortedCredits.map(credit => {
-                        const detail = detailsMap.get(credit.id);
-                        if (detail) {
-                            return {
-                                ...credit,
-                                budget: detail.budget,
-                                revenue: detail.revenue,
-                                runtime: detail.runtime,
-                                status: detail.status // Add status
-                            };
-                        }
-                        return credit;
-                    });
+                        // Update credits with real budget/revenue AND status
+                        const updatedCredits = sortedCredits.map(credit => {
+                            const detail = detailsMap.get(credit.id);
+                            if (detail) {
+                                return {
+                                    ...credit,
+                                    budget: detail.budget,
+                                    revenue: detail.revenue,
+                                    runtime: detail.runtime,
+                                    status: detail.status // Add status
+                                };
+                            }
+                            return credit;
+                        });
 
-                    // Filter out "TBA" / Future movies that are NOT "In Production" or "Post Production"
-                    const finalCredits = updatedCredits.filter(movie => {
-                        const releaseDate = movie.release_date ? new Date(movie.release_date) : null;
-                        const isFuture = !releaseDate || releaseDate > new Date();
+                        // Filter out "TBA" / Future movies that are NOT "In Production" or "Post Production"
+                        finalCredits = updatedCredits.filter(movie => {
+                            const releaseDate = movie.release_date ? new Date(movie.release_date) : null;
+                            const isFuture = !releaseDate || releaseDate > new Date();
 
-                        if (isFuture) {
-                            // STRICT FILTER: Only show if In Production or Post Production
-                            const validStatuses = ['In Production', 'Post Production'];
-                            return validStatuses.includes(movie.status);
-                        }
-                        return true; // Show all released movies
-                    });
-
-                    setCredits(finalCredits);
-                    setCreditsData(finalCredits);
+                            if (isFuture) {
+                                // STRICT FILTER: Only show if In Production or Post Production
+                                const validStatuses = ['In Production', 'Post Production'];
+                                return validStatuses.includes(movie.status);
+                            }
+                            return true; // Show all released movies
+                        });
+                    } catch (err) {
+                        console.error("Failed to fetch movie details, falling back to basic credits", err);
+                    }
                 }
+
+                setCredits(finalCredits);
+                setCreditsData(finalCredits);
 
             } catch (error) {
                 console.error("Failed to fetch person details", error);
+            } finally {
                 setLoading(false);
             }
         };
@@ -319,6 +319,11 @@ const ActorDetails = () => {
 
     return (
         <div className="min-h-screen pb-20 animate-fade-in">
+            <SEO
+                title={person.name}
+                description={person.biography}
+                image={`${IMAGE_BASE_URL}${person.profile_path}`}
+            />
             {/* Header / Bio Section */}
             <div className="relative">
                 <div className="absolute inset-0 h-[50vh] bg-gradient-to-b from-slate-900/50 to-slate-900 z-0" />
@@ -766,7 +771,7 @@ const MovieListItem = ({ movie, rank, userRating }) => {
 
     return (
         <div
-            onClick={() => navigate(`/movie/${movie.id}`)}
+            onClick={() => navigate(generateMovieUrl(movie.id, movie.title))}
             onMouseEnter={handleMouseEnter}
             className="flex items-center gap-6 p-4 bg-slate-800/50 rounded-xl border border-white/5 hover:bg-slate-800 hover:border-white/20 transition-all cursor-pointer group relative"
         >

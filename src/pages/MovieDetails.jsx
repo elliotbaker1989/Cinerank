@@ -5,6 +5,8 @@ import RatingControls from '../components/RatingControls';
 import { getMovieDetails, getMovieVideos } from '../services/api';
 import { useMovieContext } from '../context/MovieContext';
 import { useToast } from '../context/ToastContext';
+import SEO from '../components/SEO';
+import { generatePersonUrl } from '../utils/seoUtils';
 
 import { useAuth } from '../context/AuthContext';
 import { formatReleaseDate } from '../utils/dateUtils';
@@ -58,6 +60,11 @@ export const MovieDetails = () => {
 
     return (
         <div className="text-white relative pb-20">
+            <SEO
+                title={`${movie.title} (${new Date(movie.release_date).getFullYear()})`}
+                description={movie.overview}
+                image={`https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`}
+            />
             <button
                 onClick={() => {
                     if (location.key === 'default') {
@@ -221,7 +228,7 @@ export const MovieDetails = () => {
 
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                                 {movie.credits.cast.map((person, idx) => (
-                                    <Link to={`/person/${person.id}`} key={idx} className="flex items-center gap-3 bg-slate-800/50 p-3 rounded-xl border border-white/5 hover:bg-white/10 transition-colors group">
+                                    <Link to={generatePersonUrl(person.id, person.name)} key={idx} className="flex items-center gap-3 bg-slate-800/50 p-3 rounded-xl border border-white/5 hover:bg-white/10 transition-colors group">
                                         <img
                                             src={person.image}
                                             alt={person.name}
