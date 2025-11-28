@@ -41,7 +41,7 @@ export const Home = ({ onSignInClick }) => {
             if (entries[0].isIntersecting && hasMore) {
                 setPage(prev => prev + 1);
             }
-        });
+        }, { rootMargin: '500px' });
         if (node) observer.current.observe(node);
     }, [loading, hasMore]);
 
@@ -207,9 +207,12 @@ export const Home = ({ onSignInClick }) => {
                 const voteCount = mainTab === 'foryou' ? 300 : 50; // Higher threshold for "For You" quality
 
                 // Add a minimum delay for smoother UX
-                const [newMovies] = await Promise.all([
-                    discoverMovies({
-                        page,
+                const startPage = (page - 1) * 3 + 1;
+                const pagesToFetch = [startPage, startPage + 1, startPage + 2];
+
+                const [results] = await Promise.all([
+                    Promise.all(pagesToFetch.map(p => discoverMovies({
+                        page: p,
                         sort_by: sortBy,
                         with_genres: genreIds,
                         with_watch_providers: providerIds,
@@ -217,9 +220,11 @@ export const Home = ({ onSignInClick }) => {
                         primary_release_date_gte: gte,
                         primary_release_date_lte: lte,
                         vote_count_gte: voteCount
-                    }),
+                    }))),
                     new Promise(resolve => setTimeout(resolve, 800))
                 ]);
+
+                const newMovies = results.flat();
 
                 setMovies(prev => page === 1 ? newMovies : [...prev, ...newMovies]);
                 setHasMore(newMovies.length > 0);
@@ -424,7 +429,7 @@ export const Home = ({ onSignInClick }) => {
             }
 
             {/* --- Movie Grid --- */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 px-4 md:px-8">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-6 px-4 md:px-8">
                 {movies.map((movie, index) => {
                     if (movies.length === index + 1) {
                         return (

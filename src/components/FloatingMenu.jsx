@@ -124,9 +124,9 @@ const FloatingMenu = ({ onSignInClick }) => {
                                 <p className="text-sm font-bold text-white leading-none group-hover:text-sky-400 transition-colors">
                                     {user.displayName}
                                 </p>
-                                <div className="flex items-center justify-end gap-1 mt-1 text-slate-400">
-                                    <Activity size={12} className="text-sky-500" />
-                                    <span className="text-[10px] font-bold">{totalContributions}</span>
+                                <div className="flex items-center justify-end gap-1.5 mt-1 text-slate-400">
+                                    <Activity size={16} className="text-sky-500" />
+                                    <span className="text-xs font-bold">{totalContributions}</span>
                                 </div>
                             </div>
 
@@ -134,11 +134,11 @@ const FloatingMenu = ({ onSignInClick }) => {
                                 <img
                                     src={user.photoURL}
                                     alt={user.displayName}
-                                    className="w-9 h-9 rounded-full border-2 border-white/10 group-hover:border-sky-500/50 transition-colors object-cover"
+                                    className="w-10 h-10 rounded-full border-2 border-white/10 group-hover:border-sky-500/50 transition-colors object-cover"
                                 />
                                 {/* Level Badge */}
-                                <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full ${titleInfo.current.bgColor} border-2 border-black flex items-center justify-center`}>
-                                    <Star size={8} className="text-black fill-black" />
+                                <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full ${titleInfo.current.bgColor} border-2 border-black flex items-center justify-center`}>
+                                    <Star size={10} className="text-black fill-black" />
                                 </div>
                             </div>
                         </button>

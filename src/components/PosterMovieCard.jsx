@@ -4,11 +4,55 @@ import { Plus, Star, Calendar, Ticket, ThumbsUp, ThumbsDown } from 'lucide-react
 import { useMovieContext } from '../context/MovieContext';
 import { useToast } from '../context/ToastContext';
 import { formatReleaseDate, isInCinema } from '../utils/dateUtils';
+import { getMovieProviders } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 export const PosterMovieCard = ({ movie, rank, rankList, userRating }) => {
     const navigate = useNavigate();
     const { addMovie } = useMovieContext();
     const { showToast } = useToast();
+    const { selectedProviders } = useAuth(); // Get user's subscriptions
+
+    const [providers, setProviders] = React.useState(movie.providers || []);
+    const [loadingProviders, setLoadingProviders] = React.useState(false);
+    const [hasFetchedProviders, setHasFetchedProviders] = React.useState(!!movie.providers);
+
+    const handleMouseEnter = async () => {
+        if (!hasFetchedProviders && !loadingProviders) {
+            setLoadingProviders(true);
+            try {
+                const fetchedProviders = await getMovieProviders(movie.id);
+                setProviders(fetchedProviders);
+                setHasFetchedProviders(true);
+            } catch (error) {
+                console.error("Failed to fetch providers", error);
+            } finally {
+                setLoadingProviders(false);
+            }
+        }
+    };
+
+    // Process providers to highlight subscriptions
+    const sortedProviders = React.useMemo(() => {
+        if (!providers || providers.length === 0) return [];
+        if (!selectedProviders || selectedProviders.length === 0) return providers;
+
+        const userProviderIds = new Set(selectedProviders.map(p => p.provider_id));
+
+        // Split into subscribed and others
+        const subscribed = [];
+        const others = [];
+
+        providers.forEach(p => {
+            if (userProviderIds.has(p.id)) {
+                subscribed.push({ ...p, isSubscribed: true });
+            } else {
+                others.push(p);
+            }
+        });
+
+        return [...subscribed, ...others];
+    }, [providers, selectedProviders]);
 
     // Format list name (e.g., 'action-movies' -> 'Action')
     const formatListName = (name) => {
@@ -37,6 +81,7 @@ export const PosterMovieCard = ({ movie, rank, rankList, userRating }) => {
     return (
         <div
             onClick={handleMovieClick}
+            onMouseEnter={handleMouseEnter}
             className="group relative w-full aspect-[2/3] rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-sky-500/20 hover:z-20 border border-white/5 hover:border-sky-500/30"
         >
             <img
@@ -67,23 +112,18 @@ export const PosterMovieCard = ({ movie, rank, rankList, userRating }) => {
                 </div>
             )}
 
-            {/* Rating Badge (Always Visible) */}
-            <div className="absolute bottom-2 right-2 px-2 py-1 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg flex items-center gap-1 text-xs font-bold text-white shadow-lg z-10 group-hover:opacity-0 transition-opacity duration-300">
-                <Star size={10} className="text-yellow-500" fill="currentColor" />
-                {movie.vote_average?.toFixed(1)}
-            </div>
-
-            {/* Coming Soon Badge (Always Visible if unreleased) */}
-            {formatReleaseDate(movie.release_date) && (
-                <div className="absolute top-2 right-2 w-8 h-8 bg-sky-500/80 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center shadow-lg z-10 group-hover:opacity-0 transition-opacity duration-300">
-                    <Calendar size={14} className="text-white" />
-                </div>
-            )}
-
-            {/* In Cinema Badge (Always Visible if in cinema) */}
-            {isInCinema(movie.release_date) && (
-                <div className="absolute top-2 right-2 w-8 h-8 bg-amber-500/80 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center shadow-lg z-10 group-hover:opacity-0 transition-opacity duration-300">
-                    <Ticket size={14} className="text-white" />
+            {/* Role Badges (Overlay) */}
+            {movie.roles && movie.roles.length > 0 && (
+                <div className="absolute top-2 right-2 flex flex-col gap-1 z-10">
+                    {movie.roles.includes('Producer') && (
+                        <div className="w-5 h-5 rounded-md bg-purple-500/90 text-white flex items-center justify-center text-[10px] font-bold shadow-lg border border-white/20" title="Producer">P</div>
+                    )}
+                    {movie.roles.includes('Director') && (
+                        <div className="w-5 h-5 rounded-md bg-red-500/90 text-white flex items-center justify-center text-[10px] font-bold shadow-lg border border-white/20" title="Director">D</div>
+                    )}
+                    {movie.roles.includes('Actor') && (
+                        <div className="w-5 h-5 rounded-md bg-blue-500/90 text-white flex items-center justify-center text-[10px] font-bold shadow-lg border border-white/20" title="Actor">A</div>
+                    )}
                 </div>
             )}
 
@@ -94,25 +134,34 @@ export const PosterMovieCard = ({ movie, rank, rankList, userRating }) => {
                 </h4>
 
                 {/* Watch Providers */}
-                {movie.providers && movie.providers.length > 0 && (
-                    <div className="flex justify-center gap-2 mb-3">
-                        {movie.providers.map(provider => (
-                            <div key={provider.name} className="relative group/provider">
-                                <img
-                                    src={provider.logo}
-                                    alt={provider.name}
-                                    className="w-6 h-6 rounded-full border border-white/20"
-                                />
-                                {/* Custom Tooltip */}
-                                <div className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-slate-900/90 backdrop-blur-md border border-white/10 rounded-lg shadow-xl opacity-0 group-hover/provider:opacity-100 transition-opacity duration-200 pointer-events-none z-50 whitespace-nowrap flex items-center justify-center">
-                                    <span className="text-[10px] font-bold text-white leading-none">{provider.name}</span>
-                                    {/* Arrow */}
-                                    <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-900/90" />
-                                </div>
+                <div className="flex justify-center gap-2 mb-3 min-h-[24px]">
+                    {loadingProviders ? (
+                        <div className="w-4 h-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+                    ) : (
+                        sortedProviders.length > 0 && (
+                            <div className="flex justify-center gap-2">
+                                {sortedProviders.slice(0, 4).map(provider => (
+                                    <div key={provider.name} className={`relative group/provider transition-all duration-300 ${provider.isSubscribed ? 'z-10 scale-110' : ''}`}>
+                                        <img
+                                            src={provider.logo}
+                                            alt={provider.name}
+                                            className={`w-6 h-6 rounded-full border ${provider.isSubscribed ? 'border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'border-white/20'}`}
+                                        />
+                                        {/* Custom Tooltip */}
+                                        <div className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-slate-900/90 backdrop-blur-md border border-white/10 rounded-lg shadow-xl opacity-0 group-hover/provider:opacity-100 transition-opacity duration-200 pointer-events-none z-50 whitespace-nowrap flex flex-col items-center justify-center">
+                                            {provider.isSubscribed && (
+                                                <span className="text-[8px] font-bold text-green-400 uppercase tracking-wider mb-0.5">On My Subscriptions</span>
+                                            )}
+                                            <span className="text-[10px] font-bold text-white leading-none">{provider.name}</span>
+                                            {/* Arrow */}
+                                            <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-900/90" />
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
-                        ))}
-                    </div>
-                )}
+                        )
+                    )}
+                </div>
 
                 <button
                     onClick={handleAddToWatchlist}

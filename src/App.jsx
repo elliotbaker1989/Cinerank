@@ -91,7 +91,7 @@ function App() {
           <Route path="/cineadmin/*" element={<CineAdmin />} />
         </Routes>
       ) : (
-        <div className={`min-h-screen p-6 md:p-12 md:pt-32 max-w-7xl mx-auto pb-24 md:pb-12 ${viewAsSignedOut ? 'pt-16' : ''}`}>
+        <div className={`min-h-screen p-6 md:p-12 md:pt-32 max-w-[2000px] mx-auto pb-24 md:pb-12 ${viewAsSignedOut ? 'pt-16' : ''}`}>
           <header className="mb-16 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="text-center md:text-left relative md:hidden">
               <div className="absolute -left-20 -top-20 w-64 h-64 bg-sky-500/20 rounded-full blur-3xl pointer-events-none mix-blend-screen" />

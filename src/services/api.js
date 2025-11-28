@@ -42,9 +42,13 @@ const mapMovie = (movie) => ({
     backdrop_path: movie.backdrop_path ? (movie.backdrop_path.startsWith('http') ? movie.backdrop_path : `${IMAGE_BASE_URL_ORIGINAL}${movie.backdrop_path}`) : null,
     release_date: movie.release_date,
     vote_average: movie.vote_average,
+    vote_count: movie.vote_count,
+    popularity: movie.popularity,
     genre_ids: movie.genre_ids,
     overview: movie.overview,
     uniqueId: movie.uniqueId || crypto.randomUUID(),
+    character: movie.character,
+    job: movie.job,
 });
 
 const getUniqueProviders = (providerData) => {
@@ -96,6 +100,18 @@ export const searchMovies = async (query) => {
     if (!query) return [];
     const data = await fetchFromTMDB("/search/movie", { query });
     return data?.results?.map(mapMovie) || [];
+};
+
+export const searchPeople = async (query) => {
+    if (!query) return [];
+    const data = await fetchFromTMDB("/search/person", { query });
+    return data?.results?.map(person => ({
+        id: person.id,
+        name: person.name,
+        image: person.profile_path ? `${IMAGE_BASE_URL}${person.profile_path}` : null,
+        known_for: person.known_for?.map(m => m.title || m.name).join(', '),
+        type: 'person'
+    })) || [];
 };
 
 export const getTrendingMovies = async (region = 'US') => {
@@ -155,6 +171,11 @@ export const getWatchProviders = async (region = 'US') => {
     return data?.results || [];
 };
 
+export const getMovieProviders = async (movieId) => {
+    const data = await fetchFromTMDB(`/movie/${movieId}/watch/providers`);
+    return getUniqueProviders(data);
+};
+
 export const getPersonDetails = async (personId) => {
     const data = await fetchFromTMDB(`/person/${personId}`);
     return data;
@@ -162,7 +183,158 @@ export const getPersonDetails = async (personId) => {
 
 export const getPersonMovieCredits = async (personId) => {
     const data = await fetchFromTMDB(`/person/${personId}/movie_credits`);
-    return data?.cast?.map(mapMovie) || [];
+    if (!data) return [];
+
+    const movieMap = new Map();
+
+    // Process Crew (Director, Producer) first to establish non-acting roles
+    data.crew?.forEach(movie => {
+        const job = movie.job;
+        let role = null;
+
+        if (job === 'Director') role = 'Director';
+        else if (job === 'Producer' || job === 'Executive Producer') role = 'Producer';
+
+        if (role) {
+            if (!movieMap.has(movie.id)) {
+                movieMap.set(movie.id, { ...mapMovie(movie), roles: [] });
+            }
+            const entry = movieMap.get(movie.id);
+            if (!entry.roles.includes(role)) {
+                entry.roles.push(role);
+            }
+        }
+    });
+
+    // Process Cast (Actors)
+    data.cast?.forEach(movie => {
+        if (!movieMap.has(movie.id)) {
+            movieMap.set(movie.id, { ...mapMovie(movie), roles: [] });
+        }
+        const entry = movieMap.get(movie.id);
+
+        // Check for invalid character names that shouldn't be counted as "Actor"
+        const character = movie.character?.toLowerCase() || "";
+        const invalidRoles = [
+            "self", "himself", "herself", "archive footage", "archive sound",
+            "thanks", "special thanks", "executive producer", "producer", "guest", "host"
+        ];
+        const isInvalidRole = invalidRoles.some(role => character.includes(role));
+
+        // Check if they are already a Producer/Director and have NO character name (likely a data error)
+        const isProducerOrDirector = entry.roles.includes('Producer') || entry.roles.includes('Director');
+        const isEmptyCharacter = !movie.character || movie.character.trim() === "";
+
+        // Only add Actor role if it's a valid acting credit
+        if (!isInvalidRole && !(isProducerOrDirector && isEmptyCharacter)) {
+            if (!entry.roles.includes('Actor')) {
+                entry.roles.push('Actor');
+            }
+            // Keep the character name if it exists and isn't already set
+            if (movie.character && !entry.character) {
+                entry.character = movie.character;
+            }
+        }
+    });
+
+    return Array.from(movieMap.values());
+};
+
+export const getMoviesDetails = async (movieIds) => {
+    // Limit concurrency to avoid rate limits
+    const BATCH_SIZE = 5;
+    const results = [];
+
+    for (let i = 0; i < movieIds.length; i += BATCH_SIZE) {
+        const batch = movieIds.slice(i, i + BATCH_SIZE);
+        const promises = batch.map(id => fetchFromTMDB(`/movie/${id}`));
+        const batchResults = await Promise.all(promises);
+        results.push(...batchResults);
+    }
+
+    return results.filter(Boolean);
+};
+
+export const getPersonTvCredits = async (personId) => {
+    const data = await fetchFromTMDB(`/person/${personId}/tv_credits`);
+    return data?.cast || [];
+};
+
+export const getPersonCollaborators = async (personId, movieCredits) => {
+    if (!movieCredits || movieCredits.length === 0) return null;
+
+    // Sort by vote_count to get significant movies
+    // Increased limit to 60 to capture more collaborations (e.g. De Niro & Leo)
+    const topMovies = [...movieCredits]
+        .sort((a, b) => b.vote_count - a.vote_count)
+        .slice(0, 60);
+
+    // Batch requests to avoid rate limits
+    const BATCH_SIZE = 5;
+    const results = [];
+
+    for (let i = 0; i < topMovies.length; i += BATCH_SIZE) {
+        const batch = topMovies.slice(i, i + BATCH_SIZE);
+        const promises = batch.map(movie => fetchFromTMDB(`/movie/${movie.id}/credits`));
+        const batchResults = await Promise.all(promises);
+        results.push(...batchResults);
+
+        // Small delay between batches to be nice to the API
+        if (i + BATCH_SIZE < topMovies.length) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+    }
+
+    const directorStats = {};
+    const costarStats = {};
+
+    results.forEach((credits, index) => {
+        if (!credits) return;
+        const movieTitle = topMovies[index].title;
+
+        // Directors
+        const directors = credits.crew?.filter(c => c.job === "Director") || [];
+        directors.forEach(d => {
+            if (!directorStats[d.id]) {
+                directorStats[d.id] = { count: 0, name: d.name, image: d.profile_path, movies: [] };
+            }
+            directorStats[d.id].count++;
+            if (!directorStats[d.id].movies.includes(movieTitle)) {
+                directorStats[d.id].movies.push(movieTitle);
+            }
+        });
+
+        // Co-stars (top 10 billing to ensure main cast)
+        const cast = credits.cast?.slice(0, 10) || [];
+        cast.forEach(c => {
+            if (c.id !== parseInt(personId)) { // Exclude self
+                if (!costarStats[c.id]) {
+                    costarStats[c.id] = { count: 0, name: c.name, image: c.profile_path, movies: [] };
+                }
+                costarStats[c.id].count++;
+                if (!costarStats[c.id].movies.includes(movieTitle)) {
+                    costarStats[c.id].movies.push(movieTitle);
+                }
+            }
+        });
+    });
+
+    // Find top director
+    let topDirector = null;
+    Object.values(directorStats).forEach(d => {
+        if (!topDirector || d.count > topDirector.count) topDirector = d;
+    });
+
+    // Find top co-star
+    let topCostar = null;
+    Object.values(costarStats).forEach(c => {
+        if (!topCostar || c.count > topCostar.count) topCostar = c;
+    });
+
+    return {
+        frequentDirector: topDirector,
+        frequentCostar: topCostar
+    };
 };
 
 export const discoverMovies = async ({
@@ -173,7 +345,8 @@ export const discoverMovies = async ({
     watch_region = 'US',
     primary_release_date_gte = '',
     primary_release_date_lte = '',
-    vote_count_gte = 100 // Basic filter to avoid junk
+    vote_count_gte = 100, // Basic filter to avoid junk
+    with_people = ''
 }) => {
     const params = {
         page,
@@ -184,6 +357,8 @@ export const discoverMovies = async ({
         language: 'en-US',
     };
 
+    if (with_people) params.with_people = with_people;
+
     if (with_genres) params.with_genres = with_genres;
     if (with_watch_providers) {
         params.with_watch_providers = with_watch_providers;
@@ -191,6 +366,7 @@ export const discoverMovies = async ({
     }
     if (primary_release_date_gte) params['primary_release_date.gte'] = primary_release_date_gte;
     if (primary_release_date_lte) params['primary_release_date.lte'] = primary_release_date_lte;
+    if (params.with_people) params.with_people = params.with_people;
 
     // For "In Cinemas" we need to specify release types
     // 3 = Theatrical, 2 = Limited Theatrical

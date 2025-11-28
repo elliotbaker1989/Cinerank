@@ -82,7 +82,7 @@ export const MovieDetails = () => {
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/50 to-transparent" />
                 </div>
 
-                <div className="absolute bottom-0 left-0 w-full p-6 md:p-12 max-w-7xl mx-auto flex flex-col md:flex-row gap-8 items-end">
+                <div className="absolute bottom-0 left-0 w-full p-6 md:p-12 max-w-[2000px] mx-auto flex flex-col md:flex-row gap-8 items-end">
                     {/* Full Movie Poster (DVD Style) */}
                     <div className="hidden md:block w-64 shrink-0 rounded-xl overflow-hidden shadow-2xl shadow-black/50 border border-white/10 transform translate-y-12">
                         <img
@@ -193,7 +193,7 @@ export const MovieDetails = () => {
                 </div>
             </div>
 
-            <div className="max-w-7xl mx-auto px-6 md:px-12 py-12 grid md:grid-cols-[2fr_1fr] gap-16 mt-12 md:mt-0">
+            <div className="max-w-[2000px] mx-auto px-6 md:px-12 py-12 grid md:grid-cols-[2fr_1fr] gap-16 mt-12 md:mt-0">
                 <div className="space-y-12">
                     {/* 5. Synopsis */}
                     <section>
