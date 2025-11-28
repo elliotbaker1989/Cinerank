@@ -1,100 +1,332 @@
-import React, { useEffect, useState } from 'react';
-import { useMovieContext } from '../context/MovieContext';
-import { MovieList } from '../components/MovieList';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { SearchBar } from '../components/SearchBar';
-import { GENRES } from '../utils/constants';
-import { getTrendingMovies } from '../services/api';
-import { Plus } from 'lucide-react';
+import { PosterMovieCard } from '../components/PosterMovieCard';
+import { Top10Slider } from '../components/Top10Slider';
+import { discoverMovies, IMAGE_BASE_URL } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import { GENRE_ID_MAP } from '../utils/constants';
+import { TrendingUp, Sparkles, Ticket, Calendar, Tv, Loader2 } from 'lucide-react';
 
 export const Home = () => {
-    const { activeListId, setActiveListId, addMovie, lists } = useMovieContext();
-    const [trendingMovies, setTrendingMovies] = useState([]);
+    const { selectedRegion, selectedProviders } = useAuth();
 
+    // --- State ---
+    const [mainTab, setMainTab] = useState('trending'); // 'trending' | 'foryou'
+
+    // Availability Tabs (Multi-select)
+    // keys: 'subs', 'cinemas', 'upcoming'
+    const [availability, setAvailability] = useState({
+        subs: false,
+        cinemas: false,
+        upcoming: false
+    });
+
+    // Genre Tabs (Multi-select)
+    const [selectedGenres, setSelectedGenres] = useState([]);
+
+    // Provider Filter (Multi-select)
+    const [activeProviderFilters, setActiveProviderFilters] = useState([]);
+
+    const [movies, setMovies] = useState([]);
+    const [page, setPage] = useState(1);
+    const [loading, setLoading] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
+
+    // Infinite Scroll Observer
+    const observer = useRef();
+    const lastMovieRef = useCallback(node => {
+        if (loading) return;
+        if (observer.current) observer.current.disconnect();
+        observer.current = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting && hasMore) {
+                setPage(prev => prev + 1);
+            }
+        });
+        if (node) observer.current.observe(node);
+    }, [loading, hasMore]);
+
+    // --- Handlers ---
+    const toggleAvailability = (key) => {
+        setAvailability(prev => {
+            const newState = { ...prev, [key]: !prev[key] };
+            // Reset page and movies on filter change
+            setPage(1);
+            setMovies([]);
+
+            // If enabling subs, default to ALL selected providers
+            if (key === 'subs' && !prev.subs) {
+                setActiveProviderFilters(selectedProviders.map(p => p.provider_id));
+            }
+            // If disabling subs, clear filters
+            else if (key === 'subs' && prev.subs) {
+                setActiveProviderFilters([]);
+            }
+            return newState;
+        });
+    };
+
+    const toggleProviderFilter = (providerId) => {
+        setActiveProviderFilters(prev => {
+            const newFilters = prev.includes(providerId)
+                ? prev.filter(id => id !== providerId)
+                : [...prev, providerId];
+
+            setPage(1);
+            setMovies([]);
+            return newFilters;
+        });
+    };
+
+    const toggleGenre = (genre) => {
+        setSelectedGenres(prev => {
+            const newGenres = prev.includes(genre)
+                ? prev.filter(g => g !== genre)
+                : [...prev, genre];
+            setPage(1);
+            setMovies([]);
+            return newGenres;
+        });
+    };
+
+    const handleMainTabChange = (tab) => {
+        if (mainTab !== tab) {
+            setMainTab(tab);
+            setPage(1);
+            setMovies([]);
+        }
+    };
+
+    // --- Fetch Logic ---
     useEffect(() => {
-        const fetchTrending = async () => {
-            const movies = await getTrendingMovies();
-            setTrendingMovies(movies);
-        };
-        fetchTrending();
-    }, []);
+        const fetchMovies = async () => {
+            setLoading(true);
+            try {
+                // Construct Filters
+                const today = new Date();
+                const dateStr = (d) => d.toISOString().split('T')[0];
 
-    const activeList = lists[activeListId] || [];
+                let gte = '';
+                let lte = '';
+
+                // Date Logic
+                if (availability.cinemas && availability.upcoming) {
+                    // Both: From 45 days ago to 90 days future
+                    const start = new Date(today); start.setDate(today.getDate() - 45);
+                    const end = new Date(today); end.setDate(today.getDate() + 90);
+                    gte = dateStr(start);
+                    lte = dateStr(end);
+                } else if (availability.cinemas) {
+                    const start = new Date(today); start.setDate(today.getDate() - 45);
+                    gte = dateStr(start);
+                    lte = dateStr(today);
+                } else if (availability.upcoming) {
+                    const start = new Date(today); start.setDate(today.getDate() + 1);
+                    const end = new Date(today); end.setDate(today.getDate() + 90);
+                    gte = dateStr(start);
+                    lte = dateStr(end);
+                }
+
+                // Providers Logic
+                let providerIds = '';
+                if (availability.subs) {
+                    // If no providers are selected (user unselected all), we shouldn't fetch anything
+                    // or fetch with empty string which might mean "all" depending on API.
+                    // But logical expectation is: if I unselect everything, I see nothing.
+                    // However, TMDB API with empty with_watch_providers might return everything.
+                    // Let's assume we pass the selected IDs.
+                    if (activeProviderFilters.length > 0) {
+                        providerIds = activeProviderFilters.join('|');
+                    } else {
+                        // If filters are empty but subs is on, we probably want to show nothing
+                        // or handle it gracefully. For now, let's pass a dummy ID or handle in UI.
+                        // If we pass empty string, discoverMovies might ignore it.
+                        // Let's pass a non-existent ID to ensure 0 results if that's the intent,
+                        // OR just return early.
+                        setMovies([]);
+                        setLoading(false);
+                        return;
+                    }
+                }
+
+                // Genre Logic
+                const genreIds = selectedGenres.map(g => GENRE_ID_MAP[g]).join(',');
+
+                // Sort Logic
+                const sortBy = mainTab === 'trending' ? 'popularity.desc' : 'vote_average.desc';
+                const voteCount = mainTab === 'foryou' ? 300 : 50; // Higher threshold for "For You" quality
+
+                // Add a minimum delay for smoother UX
+                const [newMovies] = await Promise.all([
+                    discoverMovies({
+                        page,
+                        sort_by: sortBy,
+                        with_genres: genreIds,
+                        with_watch_providers: providerIds,
+                        watch_region: selectedRegion,
+                        primary_release_date_gte: gte,
+                        primary_release_date_lte: lte,
+                        vote_count_gte: voteCount
+                    }),
+                    new Promise(resolve => setTimeout(resolve, 800))
+                ]);
+
+                setMovies(prev => page === 1 ? newMovies : [...prev, ...newMovies]);
+                setHasMore(newMovies.length > 0);
+            } catch (error) {
+                console.error("Discover error:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        // Debounce slightly to avoid rapid state changes firing multiple requests
+        const timeoutId = setTimeout(fetchMovies, 100);
+        return () => clearTimeout(timeoutId);
+
+    }, [page, mainTab, availability, selectedGenres, selectedRegion, selectedProviders, activeProviderFilters]);
+
+    // --- Render Helpers ---
+    const genres = Object.keys(GENRE_ID_MAP).filter(g =>
+        ['Action', 'Comedy', 'Drama', 'Horror', 'Sci-Fi', 'Romance', 'Thriller', 'Animation', 'Documentary'].includes(g)
+    );
 
     return (
-        <main className="space-y-12">
+        <main className="min-h-screen pb-24 space-y-8 animate-fade-in">
             <SearchBar />
 
-            {/* Genre Tabs */}
-            <div className="flex justify-center md:justify-start gap-4 mb-12 overflow-x-auto pb-6 scrollbar-hide mask-linear-fade">
-                {GENRES.map((genre) => {
-                    const Icon = genre.icon;
-                    const isActive = activeListId === genre.id;
-                    return (
-                        <button
-                            key={genre.id}
-                            onClick={() => setActiveListId(genre.id)}
-                            className={`
-                flex items-center gap-3 px-8 py-4 rounded-2xl text-base font-bold transition-all duration-300 whitespace-nowrap border
-                ${isActive
-                                    ? 'bg-white text-slate-900 shadow-[0_0_30px_-5px_rgba(255,255,255,0.3)] border-transparent scale-105'
-                                    : 'bg-slate-900/40 text-slate-400 border-white/5 hover:bg-slate-800/60 hover:text-white hover:border-white/20'
-                                }
-              `}
-                        >
-                            <Icon size={20} className={isActive ? 'text-slate-900' : ''} />
-                            {genre.label}
-                        </button>
-                    );
-                })}
+            {/* --- Level 1: Main Tabs --- */}
+            <div className="flex justify-center gap-8 border-b border-white/10 pb-4">
+                <button
+                    onClick={() => handleMainTabChange('trending')}
+                    className={`text-xl font-bold flex items-center gap-2 transition-colors ${mainTab === 'trending' ? 'text-sky-400' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                    <TrendingUp size={24} /> Trending
+                </button>
+                <button
+                    onClick={() => handleMainTabChange('foryou')}
+                    className={`text-xl font-bold flex items-center gap-2 transition-colors ${mainTab === 'foryou' ? 'text-purple-400' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                    <Sparkles size={24} /> What We Think You'll Like
+                </button>
             </div>
 
-            {/* Active List */}
-            <div className="glass-panel rounded-3xl p-8 md:p-12 min-h-[600px] relative overflow-hidden">
-                {/* Decorative background blob */}
-                <div className="absolute -top-40 -right-40 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl pointer-events-none mix-blend-screen" />
-
-                <div className="flex flex-col md:flex-row justify-between items-end mb-12 relative z-10 border-b border-white/5 pb-8">
-                    <div>
-                        <h2 className="text-display text-4xl md:text-5xl font-bold text-white flex items-center gap-4">
-                            <span className="text-transparent bg-clip-text bg-gradient-to-br from-sky-400 to-purple-500 text-6xl font-black">#</span>
-                            Top 10 {GENRES.find(g => g.id === activeListId)?.label} Movies
-                        </h2>
-                        <p className="text-slate-400 mt-3 text-lg font-light">Drag and drop to rank your favorites</p>
-                    </div>
-                    <span className="text-xs font-bold text-sky-400 uppercase tracking-[0.2em] py-2 px-4 rounded-full bg-sky-500/5 border border-sky-500/20 mt-6 md:mt-0 shadow-[0_0_15px_-3px_rgba(56,189,248,0.1)]">
-                        {activeListId.toUpperCase()} EDITION
-                    </span>
+            {/* --- Level 2: Availability Tabs --- */}
+            <div className="flex flex-col items-center gap-4">
+                <div className="flex flex-wrap justify-center gap-4">
+                    <button
+                        onClick={() => toggleAvailability('subs')}
+                        className={`px-6 py-3 rounded-full font-bold flex items-center gap-2 transition-all border ${availability.subs
+                            ? 'bg-green-500/20 border-green-500 text-green-400 shadow-[0_0_15px_-5px_rgba(74,222,128,0.3)]'
+                            : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10 hover:border-white/20'
+                            }`}
+                    >
+                        <Tv size={18} /> On My Subscriptions
+                    </button>
+                    <button
+                        onClick={() => toggleAvailability('cinemas')}
+                        className={`px-6 py-3 rounded-full font-bold flex items-center gap-2 transition-all border ${availability.cinemas
+                            ? 'bg-amber-500/20 border-amber-500 text-amber-400 shadow-[0_0_15px_-5px_rgba(245,158,11,0.3)]'
+                            : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10 hover:border-white/20'
+                            }`}
+                    >
+                        <Ticket size={18} /> In Cinemas Now
+                    </button>
+                    <button
+                        onClick={() => toggleAvailability('upcoming')}
+                        className={`px-6 py-3 rounded-full font-bold flex items-center gap-2 transition-all border ${availability.upcoming
+                            ? 'bg-sky-500/20 border-sky-500 text-sky-400 shadow-[0_0_15px_-5px_rgba(14,165,233,0.3)]'
+                            : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10 hover:border-white/20'
+                            }`}
+                    >
+                        <Calendar size={18} /> Coming Soon
+                    </button>
                 </div>
 
-                <MovieList listId={activeListId} />
-
-                {/* Trending Suggestions (Only if list is empty) */}
-                {activeList.length === 0 && trendingMovies.length > 0 && (
-                    <div className="mt-12 pt-12 border-t border-white/5">
-                        <h3 className="text-2xl font-bold text-white mb-6">Trending Now</h3>
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                            {trendingMovies.slice(0, 5).map(movie => (
-                                <div key={movie.id} className="group relative aspect-[2/3] rounded-xl overflow-hidden cursor-pointer">
+                {/* Show Subscription Icons if 'subs' is active */}
+                {availability.subs && selectedProviders.length > 0 && (
+                    <div className="flex flex-wrap justify-center gap-3 animate-fade-in">
+                        {selectedProviders.map(provider => {
+                            const isActive = activeProviderFilters.includes(provider.provider_id);
+                            return (
+                                <button
+                                    key={provider.provider_id}
+                                    onClick={() => toggleProviderFilter(provider.provider_id)}
+                                    className={`relative group flex flex-col items-center gap-1 transition-all duration-300 ${isActive ? 'scale-110 z-10' : 'hover:scale-105 opacity-50 hover:opacity-80'}`}
+                                    title={provider.provider_name}
+                                >
                                     <img
-                                        src={movie.poster_path}
-                                        alt={movie.title}
-                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                        src={`${IMAGE_BASE_URL}${provider.logo_path}`}
+                                        alt={provider.provider_name}
+                                        className={`w-10 h-10 rounded-xl border-2 shadow-md transition-colors ${isActive
+                                            ? 'border-green-400 shadow-[0_0_10px_rgba(74,222,128,0.4)]'
+                                            : 'border-white/10 group-hover:border-white/30 grayscale'
+                                            }`}
                                     />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
-                                        <h4 className="text-white font-bold text-sm line-clamp-2">{movie.title}</h4>
-                                        <button
-                                            onClick={() => addMovie(activeListId, movie)}
-                                            className="mt-2 w-full py-2 bg-sky-500 hover:bg-sky-400 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1 transition-colors"
-                                        >
-                                            <Plus size={14} /> Add
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                                    {isActive && (
+                                        <div className="absolute top-9 left-1/2 -translate-x-1/2 w-1 h-1 bg-green-400 rounded-full shadow-[0_0_5px_#4ade80]" />
+                                    )}
+                                    <span className={`text-[10px] font-medium max-w-[60px] truncate transition-colors ${isActive ? 'text-green-400' : 'text-slate-500 group-hover:text-slate-300'}`}>
+                                        {provider.provider_name}
+                                    </span>
+                                </button>
+                            );
+                        })}
                     </div>
                 )}
             </div>
+
+            {/* --- Level 3: Genre Tabs --- */}
+            <div className="flex flex-wrap justify-center gap-2 px-4">
+                {genres.map(genre => (
+                    <button
+                        key={genre}
+                        onClick={() => toggleGenre(genre)}
+                        className={`px-4 py-2 rounded-xl text-sm font-medium transition-all border ${selectedGenres.includes(genre)
+                            ? 'bg-white text-black border-white scale-105'
+                            : 'bg-white/5 text-slate-400 border-transparent hover:bg-white/10 hover:text-white'
+                            }`}
+                    >
+                        {genre}
+                    </button>
+                ))}
+            </div>
+
+            {/* --- Top 10 Trending Slider --- */}
+            {mainTab === 'trending' && selectedGenres.length === 0 && (
+                <Top10Slider
+                    availability={availability}
+                    activeProviderFilters={activeProviderFilters}
+                />
+            )}
+
+            {/* --- Movie Grid --- */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 px-4 md:px-8">
+                {movies.map((movie, index) => {
+                    if (movies.length === index + 1) {
+                        return (
+                            <div ref={lastMovieRef} key={movie.uniqueId}>
+                                <PosterMovieCard movie={movie} />
+                            </div>
+                        );
+                    } else {
+                        return <PosterMovieCard key={movie.uniqueId} movie={movie} />;
+                    }
+                })}
+            </div>
+
+            {/* --- Loading State --- */}
+            {loading && (
+                <div className="flex justify-center py-12">
+                    <Loader2 className="animate-spin text-sky-500" size={40} />
+                </div>
+            )}
+
+            {!loading && movies.length === 0 && (
+                <div className="text-center py-20 text-slate-500">
+                    <p className="text-xl font-bold mb-2">No movies found</p>
+                    <p>Try adjusting your filters</p>
+                </div>
+            )}
         </main>
     );
 };

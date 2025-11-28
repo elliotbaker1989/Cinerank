@@ -4,23 +4,27 @@ import { ArrowLeft, Plus, Star, Play, List, ThumbsUp, ThumbsDown, Clock, Calenda
 import RatingControls from '../components/RatingControls';
 import { getMovieDetails, getMovieVideos } from '../services/api';
 import { useMovieContext } from '../context/MovieContext';
-import { GENRE_ID_MAP, GENRES } from '../utils/constants';
+import { useToast } from '../context/ToastContext';
+
+import { useAuth } from '../context/AuthContext';
+import { formatReleaseDate } from '../utils/dateUtils';
 
 export const MovieDetails = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const { addMovie, rateMovie, getMovieRating } = useMovieContext();
+    const { showToast } = useToast();
+    const { selectedRegion } = useAuth();
     const [movie, setMovie] = useState(null);
     const [videos, setVideos] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showTrailer, setShowTrailer] = useState(false);
-    const [showGenreSelect, setShowGenreSelect] = useState(false);
 
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                const movieData = await getMovieDetails(Number(id));
+                const movieData = await getMovieDetails(Number(id), selectedRegion);
                 const videoData = await getMovieVideos(Number(id));
                 setMovie(movieData);
                 setVideos(videoData);
@@ -32,7 +36,7 @@ export const MovieDetails = () => {
         };
 
         fetchData();
-    }, [id]);
+    }, [id, selectedRegion]);
 
     if (loading) {
         return <div className="text-white text-center mt-20">Loading...</div>;
@@ -46,15 +50,9 @@ export const MovieDetails = () => {
     const cinerankScore = movie.cinerank_score || 85; // Fallback if not in mock
     const isHighScore = cinerankScore >= 80;
 
-    // Filter available genres for this movie that match our lists
-    const availableGenres = movie.genres
-        .map(g => ({ ...g, listId: GENRE_ID_MAP[g.name] }))
-        .filter(g => g.listId);
-
-    const handleAddToRanking = (listId) => {
-        addMovie(listId, movie);
-        setShowGenreSelect(false);
-        // Optional: Add toast notification here
+    const handleAddToRanking = () => {
+        addMovie(null, movie);
+        showToast(`Added "${movie.title}" to your ranking lists!`, 'success');
     };
 
     return (
@@ -133,7 +131,7 @@ export const MovieDetails = () => {
                         <div className="flex flex-wrap items-center gap-6 text-slate-300 text-sm md:text-base font-medium mb-8">
                             <div className="flex items-center gap-2">
                                 <Calendar size={18} className="text-sky-400" />
-                                {new Date(movie.release_date).getFullYear()}
+                                {formatReleaseDate(movie.release_date) || new Date(movie.release_date).getFullYear()}
                             </div>
                             {movie.runtime && (
                                 <div className="flex items-center gap-2">
@@ -166,58 +164,23 @@ export const MovieDetails = () => {
                             )}
 
                             <button
-                                onClick={() => addMovie('watchlist', movie)}
+                                onClick={() => {
+                                    addMovie('watchlist', movie);
+                                    showToast(`Added "${movie.title}" to your Watch List!`, 'info');
+                                }}
                                 className="flex items-center gap-2 bg-sky-500 hover:bg-sky-600 text-white px-8 py-4 rounded-full font-bold transition-all shadow-lg shadow-sky-500/20 hover:scale-105 active:scale-95"
                             >
                                 <Plus size={24} />
                                 Add to Watch List
                             </button>
 
-                            <div className="relative">
-                                <button
-                                    onClick={() => setShowGenreSelect(!showGenreSelect)}
-                                    className="flex items-center gap-2 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white px-8 py-4 rounded-full font-bold transition-all border border-white/10 hover:scale-105 active:scale-95"
-                                >
-                                    <List size={24} />
-                                    Add to Ranking
-                                </button>
-
-                                {showGenreSelect && (
-                                    <div className="absolute top-full left-0 mt-2 w-64 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-200">
-                                        <div className="p-3 border-b border-white/5 text-sm font-semibold text-slate-400">
-                                            Select a list to add to:
-                                        </div>
-                                        <div className="max-h-60 overflow-y-auto custom-scrollbar">
-                                            <button
-                                                onClick={() => handleAddToRanking('all-time')}
-                                                className="w-full text-left px-4 py-3 hover:bg-white/10 transition-colors flex items-center gap-3"
-                                            >
-                                                <Film size={16} className="text-sky-400" />
-                                                All-Time Favorites
-                                            </button>
-                                            {availableGenres.map(genre => (
-                                                <button
-                                                    key={genre.id}
-                                                    onClick={() => handleAddToRanking(genre.listId)}
-                                                    className="w-full text-left px-4 py-3 hover:bg-white/10 transition-colors flex items-center gap-3"
-                                                >
-                                                    {/* Find icon for genre */}
-                                                    {(() => {
-                                                        const GenreIcon = GENRES.find(g => g.id === genre.listId)?.icon || Film;
-                                                        return <GenreIcon size={16} className="text-sky-400" />;
-                                                    })()}
-                                                    {genre.name}
-                                                </button>
-                                            ))}
-                                            {availableGenres.length === 0 && (
-                                                <div className="px-4 py-3 text-sm text-slate-500 italic">
-                                                    No specific genre lists available for this movie.
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
+                            <button
+                                onClick={() => handleAddToRanking(null)}
+                                className="flex items-center gap-2 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white px-8 py-4 rounded-full font-bold transition-all border border-white/10 hover:scale-105 active:scale-95"
+                            >
+                                <List size={24} />
+                                Add to Ranking
+                            </button>
                         </div>
                     </div>
                 </div>

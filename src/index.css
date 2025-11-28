@@ -53,6 +53,17 @@ body {
   .text-glow {
     text-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
   }
+
+  .text-glow-menu {
+    text-shadow:
+      0 0 10px rgba(56, 189, 248, 0.8),
+      0 0 20px rgba(56, 189, 248, 0.4);
+  }
+
+  .font-outline-2 {
+    -webkit-text-stroke: 2px rgba(255, 255, 255, 0.5);
+    color: transparent;
+  }
 }
 
 /* Custom Scrollbar */
@@ -79,13 +90,16 @@ body {
     opacity: 0;
     transform: translateX(100%);
   }
+
   60% {
     opacity: 1;
     transform: translateX(-20px);
   }
+
   80% {
     transform: translateX(10px);
   }
+
   100% {
     transform: translateX(0);
   }
@@ -96,10 +110,12 @@ body {
     opacity: 1;
     transform: translateX(0);
   }
+
   20% {
     opacity: 1;
     transform: translateX(-20px);
   }
+
   100% {
     opacity: 0;
     transform: translateX(100%);

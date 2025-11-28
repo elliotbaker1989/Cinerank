@@ -1,17 +1,17 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Film, List, Users, User } from 'lucide-react';
+import { Film, List, Users, Trophy } from 'lucide-react';
 
 const BottomNav = () => {
     const navItems = [
-        { path: '/', label: 'Movies', icon: Film },
+        { path: '/', label: 'Discover', icon: Film },
+        { path: '/ratings', label: 'Rankings', icon: Trophy },
         { path: '/watchlist', label: 'Watchlist', icon: List },
         { path: '/friends', label: 'Friends', icon: Users },
-        { path: '/account', label: 'Account', icon: User },
     ];
 
     return (
-        <nav className="fixed bottom-0 left-0 right-0 bg-slate-900/90 backdrop-blur-lg border-t border-white/10 pb-safe pt-2 px-6 z-50">
+        <nav className="fixed bottom-0 left-0 right-0 bg-slate-900/90 backdrop-blur-lg border-t border-white/10 pb-safe pt-2 px-6 z-50 md:hidden">
             <div className="flex justify-between items-center max-w-md mx-auto">
                 {navItems.map((item) => {
                     const Icon = item.icon;
