@@ -13,7 +13,7 @@ import ActorDetails from './pages/ActorDetails';
 import { Watchlist } from './pages/Watchlist';
 import { Ratings } from './pages/Ratings';
 import { Settings } from './pages/Settings';
-import CineAdmin from './pages/admin/CineAdmin';
+import CineAdmin from './pages/Admin/CineAdmin';
 import { getUserTitle } from './utils/userTitles';
 
 import SignInModal from './components/SignInModal';
