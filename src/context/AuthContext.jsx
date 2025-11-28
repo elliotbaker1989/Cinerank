@@ -26,6 +26,18 @@ export const AuthProvider = ({ children }) => {
                 try {
                     const userDocRef = doc(db, 'users', currentUser.uid);
                     const userDoc = await getDoc(userDocRef);
+
+                    // Save/Update user profile data
+                    const userData = {
+                        email: currentUser.email,
+                        displayName: currentUser.displayName,
+                        photoURL: currentUser.photoURL,
+                        lastSignIn: new Date().toISOString(),
+                        dateJoined: currentUser.metadata.creationTime
+                    };
+
+                    await setDoc(userDocRef, userData, { merge: true });
+
                     if (userDoc.exists()) {
                         const data = userDoc.data();
                         console.log("Auth: Fetched data", data);
@@ -41,7 +53,7 @@ export const AuthProvider = ({ children }) => {
                         setSelectedProviders([]); // New user doc
                     }
                 } catch (error) {
-                    console.error("Auth: Error fetching user data:", error);
+                    console.error("Auth: Error fetching/saving user data:", error);
                     setSelectedProviders([]); // Fallback
                 }
             } else {

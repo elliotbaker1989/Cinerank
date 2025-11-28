@@ -157,6 +157,20 @@ const FloatingMenu = () => {
                                         </div>
                                     </div>
 
+                                    {/* Super Admin Link - Only visible to admin */}
+                                    {user.email === 'elbak89@gmail.com' && (
+                                        <Link
+                                            to="/cineadmin"
+                                            onClick={() => setShowProfileMenu(false)}
+                                            className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-white hover:bg-white/10 rounded-xl transition-colors"
+                                        >
+                                            <div className="w-4 h-4 rounded-full bg-sky-500 flex items-center justify-center">
+                                                <span className="text-[10px] font-bold text-black">A</span>
+                                            </div>
+                                            Super Admin
+                                        </Link>
+                                    )}
+
                                     <Link
                                         to="/settings"
                                         onClick={() => setShowProfileMenu(false)}
