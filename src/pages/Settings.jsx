@@ -13,14 +13,15 @@ import { GENRE_ID_MAP } from '../utils/constants';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import {
     User, Mail, Globe, Monitor, LogOut, Trash2,
-    ChevronDown, Check, Shield, Camera, Edit2, Search, X, Upload
+    ChevronDown, Check, Shield, Camera, Edit2, Search, X, Upload, Activity
 } from 'lucide-react';
 import { getUserTitle } from '../utils/userTitles';
 
 export const Settings = () => {
     const { user, logout, deleteAccount, selectedRegion, setSelectedRegion, selectedProviders, setSelectedProviders } = useAuth();
     const { ratings, lists, setActiveListId } = useMovieContext();
-    const titleInfo = getUserTitle(Object.keys(ratings).length);
+    const totalContributions = Object.keys(ratings).length + (lists['all-time']?.length || 0) + (lists.watchlist?.length || 0);
+    const titleInfo = getUserTitle(totalContributions);
     const { showToast } = useToast();
     const navigate = useNavigate();
     const fileInputRef = useRef(null);
@@ -165,17 +166,16 @@ export const Settings = () => {
         <main className="max-w-4xl mx-auto space-y-8 animate-fade-in pb-20">
             {/* ... (header and other sections remain same) ... */}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-8">
                 {/* Profile Section */}
-                <section className="glass-panel p-6 rounded-3xl space-y-6 h-fit">
+                <section className="glass-panel p-6 rounded-3xl space-y-6">
                     <h2 className="text-xl font-bold text-white flex items-center gap-2">
                         <User className="text-sky-400" size={20} /> Profile
                     </h2>
 
-                    <div className="flex items-start gap-6">
+                    <div className="flex flex-col md:flex-row items-start gap-6">
 
-                        <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-                            {/* ... existing image code ... */}
+                        <div className="relative group cursor-pointer shrink-0 mx-auto md:mx-0" onClick={() => fileInputRef.current?.click()}>
                             <input
                                 type="file"
                                 ref={fileInputRef}
@@ -200,13 +200,19 @@ export const Settings = () => {
                             </div>
                         </div>
 
-                        <div className="flex-1 space-y-4">
+                        <div className="flex-1 space-y-4 w-full">
                             {/* Progress Bar */}
                             <div className="bg-white/5 rounded-xl p-3 border border-white/10">
                                 <div className="flex justify-between items-end mb-2">
                                     <div>
                                         <p className="text-xs text-slate-400 font-medium">Current Level</p>
-                                        <p className={`text-sm font-bold ${titleInfo.current.color}`}>{titleInfo.current.title}</p>
+                                        <div className="flex items-center gap-2">
+                                            <p className={`text-sm font-bold ${titleInfo.current.color}`}>{titleInfo.current.title}</p>
+                                            <div className="flex items-center gap-1 bg-white/5 px-1.5 py-0.5 rounded text-xs text-slate-400">
+                                                <Activity size={10} className="text-sky-500" />
+                                                <span>{totalContributions}</span>
+                                            </div>
+                                        </div>
                                     </div>
                                     {titleInfo.next && (
                                         <div className="text-right">
@@ -223,7 +229,7 @@ export const Settings = () => {
                                 </div>
                                 {titleInfo.next ? (
                                     <p className="text-[10px] text-slate-500 mt-2 text-center">
-                                        <span className="text-white font-bold">{titleInfo.needed}</span> more ratings to level up
+                                        <span className="text-white font-bold">{titleInfo.needed}</span> more contributions to level up
                                     </p>
                                 ) : (
                                     <p className="text-[10px] text-amber-500 mt-2 text-center font-bold">
@@ -232,30 +238,31 @@ export const Settings = () => {
                                 )}
                             </div>
 
-                            <div>
-                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Display Name</label>
-                                {/* ... existing inputs ... */}
-                                <div className="flex items-center gap-2 bg-white/5 rounded-xl px-4 py-2 border border-white/10 focus-within:border-sky-500/50 transition-colors">
-                                    <input
-                                        type="text"
-                                        value={displayName}
-                                        onChange={(e) => setDisplayName(e.target.value)}
-                                        className="bg-transparent text-white font-medium w-full outline-none"
-                                    />
-                                    <Edit2 size={14} className="text-slate-500" />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Display Name</label>
+                                    <div className="flex items-center gap-2 bg-white/5 rounded-xl px-4 py-2 border border-white/10 focus-within:border-sky-500/50 transition-colors">
+                                        <input
+                                            type="text"
+                                            value={displayName}
+                                            onChange={(e) => setDisplayName(e.target.value)}
+                                            className="bg-transparent text-white font-medium w-full outline-none"
+                                        />
+                                        <Edit2 size={14} className="text-slate-500" />
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div>
-                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Username</label>
-                                <div className="flex items-center gap-2 bg-white/5 rounded-xl px-4 py-2 border border-white/10 focus-within:border-sky-500/50 transition-colors">
-                                    <span className="text-slate-500">@</span>
-                                    <input
-                                        type="text"
-                                        value={username}
-                                        onChange={(e) => setUsername(e.target.value)}
-                                        className="bg-transparent text-white font-medium w-full outline-none"
-                                    />
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Username</label>
+                                    <div className="flex items-center gap-2 bg-white/5 rounded-xl px-4 py-2 border border-white/10 focus-within:border-sky-500/50 transition-colors">
+                                        <span className="text-slate-500">@</span>
+                                        <input
+                                            type="text"
+                                            value={username}
+                                            onChange={(e) => setUsername(e.target.value)}
+                                            className="bg-transparent text-white font-medium w-full outline-none"
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
@@ -301,7 +308,7 @@ export const Settings = () => {
                 </section>
 
                 {/* Stats Section */}
-                <section className="glass-panel p-6 rounded-3xl space-y-6 h-fit">
+                <section className="glass-panel p-6 rounded-3xl space-y-6">
                     <div className="flex items-center justify-between">
                         <h2 className="text-xl font-bold text-white flex items-center gap-2">
                             <Monitor className="text-purple-400" size={20} /> Stats & Overview
@@ -311,13 +318,32 @@ export const Settings = () => {
                         </span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    {/* Contributions Badge */}
+                    <div className="flex items-center gap-4 bg-white/5 rounded-2xl p-6 border border-white/10">
+                        <div className="p-4 bg-sky-500/20 rounded-2xl text-sky-400">
+                            <Activity size={32} />
+                        </div>
+                        <div>
+                            <p className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-1">Total Contributions</p>
+                            <p className="text-4xl font-black text-white">
+                                {Object.keys(ratings).length + (lists['all-time']?.length || 0) + (lists.watchlist?.length || 0)}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div
                             onClick={() => navigate('/ratings')}
                             className="bg-white/5 rounded-2xl p-4 border border-white/10 cursor-pointer hover:bg-white/10 hover:border-white/20 transition-all group"
                         >
+                            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1 group-hover:text-white transition-colors">Total Rated</p>
+                            <p className="text-3xl font-black text-white">{Object.keys(ratings).length}</p>
+                        </div>
+                        <div
+                            className="bg-white/5 rounded-2xl p-4 border border-white/10 cursor-pointer hover:bg-white/10 hover:border-white/20 transition-all group"
+                        >
                             <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1 group-hover:text-white transition-colors">Total Ranked</p>
-                            <p className="text-3xl font-black text-white">{totalRanked}</p>
+                            <p className="text-3xl font-black text-white">{lists['all-time']?.length || 0}</p>
                         </div>
                         <div
                             onClick={() => navigate('/watchlist')}

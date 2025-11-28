@@ -132,9 +132,23 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const [viewAsSignedOut, setViewAsSignedOut] = useState(false);
+
+    const toggleViewAsSignedOut = () => {
+        setViewAsSignedOut(prev => !prev);
+        if (!viewAsSignedOut) {
+            showToast('Viewing as signed out', 'info');
+        } else {
+            showToast('Exited view mode', 'success');
+        }
+    };
+
     return (
         <AuthContext.Provider value={{
-            user,
+            user: viewAsSignedOut ? null : user,
+            realUser: user,
+            viewAsSignedOut,
+            toggleViewAsSignedOut,
             signInWithGoogle,
             logout,
             deleteAccount,

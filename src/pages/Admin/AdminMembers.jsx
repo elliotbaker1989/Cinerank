@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, Activity } from 'lucide-react';
 import { getUserTitle } from '../../utils/userTitles';
 
 const AdminMembers = () => {
@@ -10,6 +11,7 @@ const AdminMembers = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 20;
+    const navigate = useNavigate();
 
     const [error, setError] = useState(null);
 
@@ -125,23 +127,31 @@ const AdminMembers = () => {
                                 const titleInfo = getUserTitle(ratingsCount);
 
                                 return (
-                                    <tr key={member.id} className="hover:bg-white/5 transition-colors">
+                                    <tr
+                                        key={member.id}
+                                        className="hover:bg-white/5 transition-colors cursor-pointer group"
+                                        onClick={() => navigate(`/cineadmin/members/${member.id}`)}
+                                    >
                                         <td className="p-4">
                                             <div className="flex items-center gap-4">
                                                 <img
                                                     src={member.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.displayName || 'User')}&background=random`}
                                                     alt={member.displayName}
-                                                    className="w-12 h-12 rounded-full object-cover border-2 border-white/10"
+                                                    className="w-12 h-12 rounded-full object-cover border-2 border-white/10 group-hover:border-sky-500/50 transition-colors"
                                                 />
                                                 <div className="flex flex-col gap-1">
-                                                    <span className="font-bold text-white text-lg leading-none">{member.displayName || 'Unknown User'}</span>
+                                                    <span className="font-bold text-white text-lg leading-none group-hover:text-sky-400 transition-colors">{member.displayName || 'Unknown User'}</span>
                                                     <div className="flex items-center gap-2">
                                                         <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-white/5 ${titleInfo.current.color}`}>
                                                             {titleInfo.current.title}
                                                         </span>
-                                                        <div className="flex items-center gap-1 text-xs font-bold text-slate-400">
-                                                            <span className="text-yellow-500">★</span>
-                                                            {ratingsCount}
+                                                        <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-xl border border-white/10 shrink-0">
+                                                            <Activity className="text-sky-500" size={14} />
+                                                            <span className="text-sm font-black text-white">
+                                                                {(member.ratings ? Object.keys(member.ratings).length : 0) +
+                                                                    (member.lists?.['all-time']?.length || 0) +
+                                                                    (member.lists?.watchlist?.length || 0)}
+                                                            </span>
                                                         </div>
                                                     </div>
                                                 </div>

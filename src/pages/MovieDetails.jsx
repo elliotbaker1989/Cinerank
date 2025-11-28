@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { ArrowLeft, Plus, Star, Play, List, ThumbsUp, ThumbsDown, Clock, Calendar, Film, X } from 'lucide-react';
 import RatingControls from '../components/RatingControls';
 import { getMovieDetails, getMovieVideos } from '../services/api';
@@ -12,6 +12,7 @@ import { formatReleaseDate } from '../utils/dateUtils';
 export const MovieDetails = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const { addMovie, rateMovie, getMovieRating } = useMovieContext();
     const { showToast } = useToast();
     const { selectedRegion } = useAuth();
@@ -58,8 +59,14 @@ export const MovieDetails = () => {
     return (
         <div className="text-white relative pb-20">
             <button
-                onClick={() => navigate(-1)}
-                className="fixed top-6 left-6 z-50 p-3 bg-black/50 hover:bg-black/80 backdrop-blur-md rounded-full transition-all group"
+                onClick={() => {
+                    if (location.key === 'default') {
+                        navigate('/');
+                    } else {
+                        navigate(-1);
+                    }
+                }}
+                className="fixed top-6 left-6 z-[2000] p-3 bg-black/50 hover:bg-black/80 backdrop-blur-md rounded-full transition-all group cursor-pointer"
             >
                 <ArrowLeft size={28} className="text-white group-hover:-translate-x-1 transition-transform" />
             </button>
@@ -122,7 +129,7 @@ export const MovieDetails = () => {
                                 <RatingControls
                                     movieId={movie.id}
                                     userRating={getMovieRating(movie.id)}
-                                    onRate={rateMovie}
+                                    onRate={(movieId, rating) => rateMovie(movie, rating)}
                                 />
                             </div>
                         </div>
@@ -214,17 +221,17 @@ export const MovieDetails = () => {
 
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                                 {movie.credits.cast.map((person, idx) => (
-                                    <div key={idx} className="flex items-center gap-3 bg-slate-800/50 p-3 rounded-xl border border-white/5">
+                                    <Link to={`/person/${person.id}`} key={idx} className="flex items-center gap-3 bg-slate-800/50 p-3 rounded-xl border border-white/5 hover:bg-white/10 transition-colors group">
                                         <img
                                             src={person.image}
                                             alt={person.name}
                                             className="w-12 h-12 rounded-full object-cover"
                                         />
                                         <div>
-                                            <div className="font-semibold text-slate-200 text-sm">{person.name}</div>
+                                            <div className="font-semibold text-slate-200 text-sm group-hover:text-sky-400 transition-colors">{person.name}</div>
                                             <div className="text-xs text-slate-400">{person.role}</div>
                                         </div>
-                                    </div>
+                                    </Link>
                                 ))}
                             </div>
                         </section>

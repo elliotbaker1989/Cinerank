@@ -1,14 +1,21 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Star, Calendar, Ticket } from 'lucide-react';
+import { Plus, Star, Calendar, Ticket, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { useMovieContext } from '../context/MovieContext';
 import { useToast } from '../context/ToastContext';
 import { formatReleaseDate, isInCinema } from '../utils/dateUtils';
 
-export const PosterMovieCard = ({ movie }) => {
+export const PosterMovieCard = ({ movie, rank, rankList, userRating }) => {
     const navigate = useNavigate();
     const { addMovie } = useMovieContext();
     const { showToast } = useToast();
+
+    // Format list name (e.g., 'action-movies' -> 'Action')
+    const formatListName = (name) => {
+        if (!name) return '';
+        if (name === 'all-time') return 'All Time';
+        return name.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+    };
 
     const handleMovieClick = () => {
         navigate(`/movie/${movie.id}`);
@@ -38,6 +45,27 @@ export const PosterMovieCard = ({ movie }) => {
                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                 loading="lazy"
             />
+
+            {/* Rank Badge (If provided) */}
+            {rank && (
+                <div className="absolute top-2 left-2 w-8 h-8 bg-gradient-to-br from-yellow-300 to-yellow-600 text-black font-black text-sm rounded-full flex items-center justify-center shadow-lg shadow-yellow-500/40 z-20 border-2 border-white/90">
+                    #{rank}
+                </div>
+            )}
+
+            {/* User Rating Badge (If provided) */}
+            {userRating && (
+                <div className="absolute top-2 left-2 z-20">
+                    <div className={`p-1.5 rounded-lg backdrop-blur-md shadow-lg border border-white/20 ${userRating === 'double_up' ? 'bg-purple-500/90 text-white' :
+                        userRating === 'up' ? 'bg-green-500/90 text-white' :
+                            'bg-red-500/90 text-white'
+                        }`}>
+                        {userRating === 'double_up' && <div className="flex -space-x-1"><ThumbsUp size={12} fill="currentColor" /><ThumbsUp size={12} fill="currentColor" /></div>}
+                        {userRating === 'up' && <ThumbsUp size={14} fill="currentColor" />}
+                        {userRating === 'down' && <ThumbsDown size={14} fill="currentColor" />}
+                    </div>
+                </div>
+            )}
 
             {/* Rating Badge (Always Visible) */}
             <div className="absolute bottom-2 right-2 px-2 py-1 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg flex items-center gap-1 text-xs font-bold text-white shadow-lg z-10 group-hover:opacity-0 transition-opacity duration-300">
@@ -69,13 +97,19 @@ export const PosterMovieCard = ({ movie }) => {
                 {movie.providers && movie.providers.length > 0 && (
                     <div className="flex justify-center gap-2 mb-3">
                         {movie.providers.map(provider => (
-                            <img
-                                key={provider.name}
-                                src={provider.logo}
-                                alt={provider.name}
-                                className="w-6 h-6 rounded-full border border-white/20"
-                                title={provider.name}
-                            />
+                            <div key={provider.name} className="relative group/provider">
+                                <img
+                                    src={provider.logo}
+                                    alt={provider.name}
+                                    className="w-6 h-6 rounded-full border border-white/20"
+                                />
+                                {/* Custom Tooltip */}
+                                <div className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-slate-900/90 backdrop-blur-md border border-white/10 rounded-lg shadow-xl opacity-0 group-hover/provider:opacity-100 transition-opacity duration-200 pointer-events-none z-50 whitespace-nowrap flex items-center justify-center">
+                                    <span className="text-[10px] font-bold text-white leading-none">{provider.name}</span>
+                                    {/* Arrow */}
+                                    <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-900/90" />
+                                </div>
+                            </div>
                         ))}
                     </div>
                 )}
@@ -86,6 +120,14 @@ export const PosterMovieCard = ({ movie }) => {
                 >
                     <Plus size={14} /> Watchlist
                 </button>
+
+                {/* Rank Detail on Hover */}
+                {rank && (
+                    <div className="flex items-center justify-center gap-1 text-xs text-yellow-400 font-bold mb-1">
+                        <span>#{rank}</span>
+                        <span className="opacity-80 font-normal">in {formatListName(rankList)}</span>
+                    </div>
+                )}
 
                 {/* Rating in Overlay */}
                 <div className="flex items-center justify-center gap-1 text-xs text-slate-300 font-medium">

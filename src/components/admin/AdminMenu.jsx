@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Users, Settings, LogOut, Star } from 'lucide-react';
+import { Users, Settings, LogOut, Star, Activity } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 const AdminMenu = () => {
@@ -57,6 +57,20 @@ const AdminMenu = () => {
                     >
                         <Users size={18} />
                         <span>Members</span>
+                    </Link>
+
+                    <Link
+                        to="/cineadmin/contributions"
+                        className={`
+                            px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300 flex items-center gap-2.5
+                            ${isActive('/cineadmin/contributions')
+                                ? 'bg-white/10 text-white shadow-[0_0_15px_-5px_rgba(255,255,255,0.3)]'
+                                : 'text-slate-400 hover:text-white hover:bg-white/5'
+                            }
+                        `}
+                    >
+                        <Activity size={18} />
+                        <span>Contributions</span>
                     </Link>
 
                     <Link

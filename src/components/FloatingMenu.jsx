@@ -1,20 +1,24 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Trophy, List, Settings, LogOut, User, Search, Users, Star } from 'lucide-react';
+import { Home, Trophy, List, Settings, LogOut, User, Search, Users, Star, Activity } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useMovieContext } from '../context/MovieContext';
 import { getUserTitle } from '../utils/userTitles';
 
-const FloatingMenu = () => {
-    const { user, logout, signInWithGoogle } = useAuth();
-    const { ratings } = useMovieContext();
+const FloatingMenu = ({ onSignInClick }) => {
+    const { user, realUser, logout, toggleViewAsSignedOut } = useAuth();
+    const { ratings, lists } = useMovieContext();
     const location = useLocation();
     const navigate = useNavigate();
     const [showProfileMenu, setShowProfileMenu] = useState(false);
     const dropdownRef = useRef(null);
 
-    // Calculate user title info
-    const titleInfo = getUserTitle(Object.keys(ratings).length);
+    // Calculate user title info based on TOTAL CONTRIBUTIONS
+    const totalContributions = (Object.keys(ratings).length) +
+        (lists?.['all-time']?.length || 0) +
+        (lists?.watchlist?.length || 0);
+
+    const titleInfo = getUserTitle(totalContributions);
 
     const isActive = (path) => location.pathname === path;
 
@@ -40,9 +44,9 @@ const FloatingMenu = () => {
             <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-full py-3 px-8 shadow-2xl shadow-black/50 flex items-center justify-center gap-8 transition-all duration-300 hover:bg-black/50 hover:border-white/20 hover:shadow-sky-500/5 w-fit">
 
                 {/* Logo */}
-                <div className="text-2xl font-black text-white tracking-tighter leading-none text-glow-menu select-none text-display">
+                <Link to="/" className="text-2xl font-black text-white tracking-tighter leading-none text-glow-menu select-none text-display hover:opacity-80 transition-opacity">
                     CineRank
-                </div>
+                </Link>
 
                 {/* Divider */}
                 <div className="w-px h-8 bg-white/10" />
@@ -120,9 +124,10 @@ const FloatingMenu = () => {
                                 <p className="text-sm font-bold text-white leading-none group-hover:text-sky-400 transition-colors">
                                     {user.displayName}
                                 </p>
-                                <p className={`text-[10px] font-bold uppercase tracking-wider mt-0.5 ${titleInfo.current.color}`}>
-                                    {titleInfo.current.title}
-                                </p>
+                                <div className="flex items-center justify-end gap-1 mt-1 text-slate-400">
+                                    <Activity size={12} className="text-sky-500" />
+                                    <span className="text-[10px] font-bold">{totalContributions}</span>
+                                </div>
                             </div>
 
                             <div className="relative shrink-0">
@@ -146,7 +151,6 @@ const FloatingMenu = () => {
                                         <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Current Level</p>
                                         <div className="flex justify-between items-center mt-1">
                                             <span className={`text-sm font-bold ${titleInfo.current.color}`}>{titleInfo.current.title}</span>
-                                            <span className="text-xs text-slate-500">{Object.keys(ratings).length} rated</span>
                                         </div>
                                         {/* Mini Progress Bar */}
                                         <div className="h-1 bg-white/10 rounded-full mt-2 overflow-hidden">
@@ -158,17 +162,31 @@ const FloatingMenu = () => {
                                     </div>
 
                                     {/* Super Admin Link - Only visible to admin */}
-                                    {user.email === 'elbak89@gmail.com' && (
-                                        <Link
-                                            to="/cineadmin"
-                                            onClick={() => setShowProfileMenu(false)}
-                                            className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-white hover:bg-white/10 rounded-xl transition-colors"
-                                        >
-                                            <div className="w-4 h-4 rounded-full bg-sky-500 flex items-center justify-center">
-                                                <span className="text-[10px] font-bold text-black">A</span>
-                                            </div>
-                                            Super Admin
-                                        </Link>
+                                    {realUser?.email === 'elbak89@gmail.com' && (
+                                        <>
+                                            <Link
+                                                to="/cineadmin"
+                                                onClick={() => setShowProfileMenu(false)}
+                                                className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-white hover:bg-white/10 rounded-xl transition-colors"
+                                            >
+                                                <div className="w-4 h-4 rounded-full bg-sky-500 flex items-center justify-center">
+                                                    <span className="text-[10px] font-bold text-black">A</span>
+                                                </div>
+                                                Super Admin
+                                            </Link>
+                                            <button
+                                                onClick={() => {
+                                                    toggleViewAsSignedOut();
+                                                    setShowProfileMenu(false);
+                                                }}
+                                                className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-300 hover:bg-white/10 rounded-xl transition-colors text-left"
+                                            >
+                                                <div className="w-4 h-4 rounded-full border border-slate-500 flex items-center justify-center">
+                                                    <span className="text-[10px] font-bold text-slate-500">?</span>
+                                                </div>
+                                                View As Free User
+                                            </button>
+                                        </>
                                     )}
 
                                     <Link
@@ -176,7 +194,7 @@ const FloatingMenu = () => {
                                         onClick={() => setShowProfileMenu(false)}
                                         className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-white hover:bg-white/10 rounded-xl transition-colors"
                                     >
-                                        <Settings size={16} className="text-sky-400" /> Settings
+                                        <Settings size={16} className="text-sky-400" /> My Profile
                                     </Link>
 
                                     <button
@@ -191,14 +209,14 @@ const FloatingMenu = () => {
                     </div>
                 ) : (
                     <button
-                        onClick={signInWithGoogle}
+                        onClick={onSignInClick}
                         className="px-6 py-2.5 bg-sky-500 hover:bg-sky-400 text-white text-sm font-bold rounded-full transition-all shadow-lg shadow-sky-500/20 hover:shadow-sky-500/40"
                     >
                         Sign In
                     </button>
                 )}
-            </div>
-        </div>
+            </div >
+        </div >
     );
 };
 

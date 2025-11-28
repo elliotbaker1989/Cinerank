@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { db } from '../lib/firebase';
-import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, deleteDoc } from 'firebase/firestore';
 import { GENRE_ID_MAP } from '../utils/constants';
 
 export const MovieContext = createContext();
@@ -110,11 +110,13 @@ export const MovieProvider = ({ children }) => {
                 addToList(targetListId);
             }
 
-            // 2. Add to 'all-time' (default)
-            addToList('all-time');
+            // 2. Add to 'all-time' (default) - ONLY if not adding to watchlist
+            if (targetListId !== 'watchlist') {
+                addToList('all-time');
+            }
 
-            // 3. Add to matching genre lists
-            if (movie.genres) {
+            // 3. Add to matching genre lists - ONLY if not adding to watchlist
+            if (targetListId !== 'watchlist' && movie.genres) {
                 movie.genres.forEach(genre => {
                     const mappedListId = GENRE_ID_MAP[genre.name];
                     if (mappedListId) {
@@ -125,6 +127,39 @@ export const MovieProvider = ({ children }) => {
 
             return newLists;
         });
+
+        // Save to global collections for Admin Analytics
+        if (user) {
+            const saveToGlobal = async () => {
+                try {
+                    // If adding to Watchlist
+                    if (targetListId === 'watchlist') {
+                        const docRef = doc(db, 'watchlists', `${user.uid}_${movie.id}`);
+                        await setDoc(docRef, {
+                            userId: user.uid,
+                            movieId: movie.id,
+                            movieTitle: movie.title,
+                            posterPath: movie.poster_path,
+                            timestamp: new Date().toISOString()
+                        });
+                    }
+                    // If adding to Rankings (not watchlist)
+                    else {
+                        const docRef = doc(db, 'rankings', `${user.uid}_${movie.id}`);
+                        await setDoc(docRef, {
+                            userId: user.uid,
+                            movieId: movie.id,
+                            movieTitle: movie.title,
+                            posterPath: movie.poster_path,
+                            timestamp: new Date().toISOString()
+                        });
+                    }
+                } catch (error) {
+                    console.error("Error saving to global collection:", error);
+                }
+            };
+            saveToGlobal();
+        }
     };
 
     const moveToUnranked = (listId, movieId) => {
@@ -154,6 +189,28 @@ export const MovieProvider = ({ children }) => {
                 [listId]: list.filter((movie) => movie.uniqueId !== uniqueId),
             };
         });
+
+        // Remove from global collections if logged in
+        if (user && removedMovie) {
+            const removeFromGlobal = async () => {
+                try {
+                    // If removing from Watchlist
+                    if (listId === 'watchlist') {
+                        const docRef = doc(db, 'watchlists', `${user.uid}_${removedMovie.id}`);
+                        await deleteDoc(docRef);
+                    }
+                    // If removing from Rankings (all-time)
+                    else if (listId === 'all-time') {
+                        const docRef = doc(db, 'rankings', `${user.uid}_${removedMovie.id}`);
+                        await deleteDoc(docRef);
+                    }
+                } catch (error) {
+                    console.error("Error removing from global collection:", error);
+                }
+            };
+            removeFromGlobal();
+        }
+
         return removedMovie;
     };
 
@@ -188,19 +245,64 @@ export const MovieProvider = ({ children }) => {
         }));
     };
 
-    const rateMovie = (movieId, rating) => {
+    const rateMovie = async (movie, rating) => {
+        // Optimistic update for local state
         setRatings(prev => {
-            // If clicking the same rating, toggle it off (remove rating)
-            if (prev[movieId] === rating) {
+            if (prev[movie.id] === rating) {
                 const newRatings = { ...prev };
-                delete newRatings[movieId];
+                delete newRatings[movie.id];
                 return newRatings;
             }
             return {
                 ...prev,
-                [movieId]: rating
+                [movie.id]: rating
             };
         });
+
+        // Save to global 'ratings' collection for Admin Analytics
+        if (user) {
+            console.log("Attempting to save global rating...", { movieId: movie.id, rating, userId: user.uid });
+            try {
+                const ratingId = `${user.uid}_${movie.id}`;
+                const ratingDocRef = doc(db, 'ratings', ratingId);
+
+                // If removing rating (toggle off)
+                if (ratings[movie.id] === rating) {
+                    console.log("Removing rating from global collection");
+                    // We might want to delete the doc, or mark as deleted. 
+                    // For simplicity, let's delete it.
+                    // Import deleteDoc if needed, or just set rating to null?
+                    // Let's assume we just overwrite or ignore deletion for now to keep history?
+                    // Actually, if I untoggle, I should probably remove it from stats.
+                    // But for MVP let's just focus on ADDING/UPDATING.
+                    // If I untoggle, I'll set 'active' to false or delete.
+                    // Let's just set it.
+                    await setDoc(ratingDocRef, {
+                        userId: user.uid,
+                        movieId: movie.id,
+                        rating: null, // Mark as removed
+                        timestamp: new Date().toISOString(),
+                        movieTitle: movie.title,
+                        posterPath: movie.poster_path
+                    });
+                } else {
+                    console.log("Saving new rating to global collection");
+                    await setDoc(ratingDocRef, {
+                        userId: user.uid,
+                        movieId: movie.id,
+                        rating: rating,
+                        timestamp: new Date().toISOString(),
+                        movieTitle: movie.title,
+                        posterPath: movie.poster_path
+                    });
+                }
+                console.log("Successfully saved global rating!");
+            } catch (error) {
+                console.error("Error saving global rating:", error);
+            }
+        } else {
+            console.warn("User not logged in, skipping global rating save");
+        }
     };
 
     const getMovieRating = (movieId) => ratings[movieId];

@@ -2,13 +2,13 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { SearchBar } from '../components/SearchBar';
 import { PosterMovieCard } from '../components/PosterMovieCard';
 import { Top10Slider } from '../components/Top10Slider';
-import { discoverMovies, IMAGE_BASE_URL } from '../services/api';
+import { discoverMovies, getWatchProviders, IMAGE_BASE_URL } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { GENRE_ID_MAP } from '../utils/constants';
-import { TrendingUp, Sparkles, Ticket, Calendar, Tv, Loader2 } from 'lucide-react';
+import { TrendingUp, Sparkles, Ticket, Calendar, Tv, Loader2, Plus, LogIn } from 'lucide-react';
 
-export const Home = () => {
-    const { selectedRegion, selectedProviders } = useAuth();
+export const Home = ({ onSignInClick }) => {
+    const { selectedRegion, selectedProviders, user, viewAsSignedOut } = useAuth();
 
     // --- State ---
     const [mainTab, setMainTab] = useState('trending'); // 'trending' | 'foryou'
@@ -97,6 +97,54 @@ export const Home = () => {
     };
 
     // --- Fetch Logic ---
+    const [tempProviders, setTempProviders] = useState([]);
+    const [showProviderSearch, setShowProviderSearch] = useState(false);
+    const [allProviders, setAllProviders] = useState([]);
+    const [providerSearchQuery, setProviderSearchQuery] = useState('');
+    const searchPopupRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (searchPopupRef.current && !searchPopupRef.current.contains(event.target)) {
+                setShowProviderSearch(false);
+            }
+        };
+
+        if (showProviderSearch) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [showProviderSearch]);
+
+    useEffect(() => {
+        if (showProviderSearch && allProviders.length === 0) {
+            const fetchAllProviders = async () => {
+                try {
+                    const providers = await getWatchProviders(selectedRegion);
+                    // Sort by priority/popularity if possible, or just name
+                    setAllProviders(providers.sort((a, b) => a.display_priority - b.display_priority));
+                } catch (error) {
+                    console.error("Error fetching all providers:", error);
+                }
+            };
+            fetchAllProviders();
+        }
+    }, [showProviderSearch, selectedRegion, allProviders.length]);
+
+    const addTempProvider = (provider) => {
+        setTempProviders(prev => [...prev, provider]);
+        // Automatically select it
+        setActiveProviderFilters(prev => [...prev, provider.provider_id]);
+        setShowProviderSearch(false);
+        setProviderSearchQuery('');
+        // Trigger refetch
+        setPage(1);
+        setMovies([]);
+    };
+
     useEffect(() => {
         const fetchMovies = async () => {
             setLoading(true);
@@ -124,6 +172,9 @@ export const Home = () => {
                     const end = new Date(today); end.setDate(today.getDate() + 90);
                     gte = dateStr(start);
                     lte = dateStr(end);
+                } else if (availability.subs) {
+                    // When viewing subscriptions, hide unreleased movies (unless 'upcoming' is also selected)
+                    lte = dateStr(today);
                 }
 
                 // Providers Logic
@@ -243,9 +294,10 @@ export const Home = () => {
                 </div>
 
                 {/* Show Subscription Icons if 'subs' is active */}
-                {availability.subs && selectedProviders.length > 0 && (
-                    <div className="flex flex-wrap justify-center gap-3 animate-fade-in">
-                        {selectedProviders.map(provider => {
+                {availability.subs && (
+                    <div className="flex flex-wrap justify-center gap-3 animate-fade-in items-start">
+                        {/* Combine saved providers + temp providers */}
+                        {[...(selectedProviders || []), ...tempProviders].map(provider => {
                             const isActive = activeProviderFilters.includes(provider.provider_id);
                             return (
                                 <button
@@ -271,6 +323,76 @@ export const Home = () => {
                                 </button>
                             );
                         })}
+
+                        {/* Add Temporary Provider Button */}
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowProviderSearch(!showProviderSearch)}
+                                className="w-10 h-10 rounded-xl border-2 border-dashed border-white/20 flex items-center justify-center hover:border-white/50 hover:bg-white/5 transition-all text-slate-400 hover:text-white"
+                                title="Add temporary subscription"
+                            >
+                                <Plus size={20} />
+                            </button>
+
+                            {/* Search Popover */}
+                            {showProviderSearch && (
+                                <div ref={searchPopupRef} className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-64 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-3 z-50 animate-fade-in">
+                                    <input
+                                        type="text"
+                                        placeholder="Search services..."
+                                        value={providerSearchQuery}
+                                        onChange={(e) => setProviderSearchQuery(e.target.value)}
+                                        className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 mb-3"
+                                        autoFocus
+                                    />
+                                    <div className="max-h-48 overflow-y-auto space-y-1 custom-scrollbar">
+                                        {allProviders
+                                            .filter(p =>
+                                                p.provider_name.toLowerCase().includes(providerSearchQuery.toLowerCase()) &&
+                                                !selectedProviders?.some(sp => sp.provider_id === p.provider_id) &&
+                                                !tempProviders.some(tp => tp.provider_id === p.provider_id)
+                                            )
+                                            .map(provider => (
+                                                <button
+                                                    key={provider.provider_id}
+                                                    onClick={() => addTempProvider(provider)}
+                                                    className="w-full flex items-center gap-3 p-2 hover:bg-white/10 rounded-lg transition-colors text-left group"
+                                                >
+                                                    <img
+                                                        src={`${IMAGE_BASE_URL}${provider.logo_path}`}
+                                                        alt={provider.provider_name}
+                                                        className="w-8 h-8 rounded-lg"
+                                                    />
+                                                    <span className="text-sm font-medium text-slate-300 group-hover:text-white truncate">
+                                                        {provider.provider_name}
+                                                    </span>
+                                                </button>
+                                            ))}
+                                        {allProviders.length === 0 && (
+                                            <div className="text-center py-4 text-slate-500 text-xs">
+                                                Loading providers...
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        {/* Sign In Prompt (if not logged in) */}
+                        {(!user && !viewAsSignedOut) || viewAsSignedOut ? (
+                            <div className="flex items-center gap-3 ml-2 animate-fade-in">
+                                <div className="h-8 w-px bg-white/10 mx-2" />
+                                <span className="text-sm text-slate-400 font-medium hidden sm:inline-block">
+                                    Sign in to save your subscriptions
+                                </span>
+                                <button
+                                    onClick={onSignInClick}
+                                    className="flex items-center gap-2 px-4 py-2 bg-sky-500 hover:bg-sky-400 text-white text-sm font-bold rounded-lg transition-all shadow-lg shadow-sky-500/20 hover:shadow-sky-500/40"
+                                >
+                                    <LogIn size={16} />
+                                    Sign In
+                                </button>
+                            </div>
+                        ) : null}
                     </div>
                 )}
             </div>
@@ -292,12 +414,14 @@ export const Home = () => {
             </div>
 
             {/* --- Top 10 Trending Slider --- */}
-            {mainTab === 'trending' && selectedGenres.length === 0 && (
-                <Top10Slider
-                    availability={availability}
-                    activeProviderFilters={activeProviderFilters}
-                />
-            )}
+            {
+                mainTab === 'trending' && selectedGenres.length === 0 && (
+                    <Top10Slider
+                        availability={availability}
+                        activeProviderFilters={activeProviderFilters}
+                    />
+                )
+            }
 
             {/* --- Movie Grid --- */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 px-4 md:px-8">
@@ -315,18 +439,22 @@ export const Home = () => {
             </div>
 
             {/* --- Loading State --- */}
-            {loading && (
-                <div className="flex justify-center py-12">
-                    <Loader2 className="animate-spin text-sky-500" size={40} />
-                </div>
-            )}
+            {
+                loading && (
+                    <div className="flex justify-center py-12">
+                        <Loader2 className="animate-spin text-sky-500" size={40} />
+                    </div>
+                )
+            }
 
-            {!loading && movies.length === 0 && (
-                <div className="text-center py-20 text-slate-500">
-                    <p className="text-xl font-bold mb-2">No movies found</p>
-                    <p>Try adjusting your filters</p>
-                </div>
-            )}
-        </main>
+            {
+                !loading && movies.length === 0 && (
+                    <div className="text-center py-20 text-slate-500">
+                        <p className="text-xl font-bold mb-2">No movies found</p>
+                        <p>Try adjusting your filters</p>
+                    </div>
+                )
+            }
+        </main >
     );
 };

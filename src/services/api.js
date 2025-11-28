@@ -83,6 +83,7 @@ const mapMovieDetails = (movie) => ({
     credits: {
         director: movie.credits?.crew?.find(c => c.job === "Director")?.name || "Unknown",
         cast: movie.credits?.cast?.slice(0, 6).map(c => ({
+            id: c.id,
             name: c.name,
             role: c.role || c.character,
             image: c.profile_path ? `${IMAGE_BASE_URL}${c.profile_path}` : null
@@ -154,6 +155,16 @@ export const getWatchProviders = async (region = 'US') => {
     return data?.results || [];
 };
 
+export const getPersonDetails = async (personId) => {
+    const data = await fetchFromTMDB(`/person/${personId}`);
+    return data;
+};
+
+export const getPersonMovieCredits = async (personId) => {
+    const data = await fetchFromTMDB(`/person/${personId}/movie_credits`);
+    return data?.cast?.map(mapMovie) || [];
+};
+
 export const discoverMovies = async ({
     page = 1,
     sort_by = 'popularity.desc',
@@ -186,6 +197,8 @@ export const discoverMovies = async ({
     if (primary_release_date_gte || primary_release_date_lte) {
         params.with_release_type = '2|3';
     }
+
+    console.log("Discover Params:", params);
 
     const data = await fetchFromTMDB("/discover/movie", params);
     const movies = data?.results || [];

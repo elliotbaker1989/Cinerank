@@ -9,18 +9,23 @@ import BottomNav from './components/BottomNav';
 import FloatingMenu from './components/FloatingMenu';
 import { Home } from './pages/Home';
 import { MovieDetails } from './pages/MovieDetails';
+import ActorDetails from './pages/ActorDetails';
 import { Watchlist } from './pages/Watchlist';
 import { Ratings } from './pages/Ratings';
 import { Settings } from './pages/Settings';
 import CineAdmin from './pages/admin/CineAdmin';
 import { getUserTitle } from './utils/userTitles';
 
+import SignInModal from './components/SignInModal';
+import ScrollToTop from './components/ScrollToTop';
+
 function App() {
-  const { user, signInWithGoogle, logout } = useAuth();
+  const { user, realUser, viewAsSignedOut, toggleViewAsSignedOut, signInWithGoogle, logout } = useAuth();
   const { ratings } = useMovieContext();
   const titleInfo = getUserTitle(Object.keys(ratings).length);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showSignInModal, setShowSignInModal] = useState(false);
   const navigate = useNavigate();
   const dropdownRef = useRef(null);
 
@@ -34,6 +39,11 @@ function App() {
     navigate('/');
   };
 
+  const handleSignIn = async () => {
+    await signInWithGoogle();
+    setShowSignInModal(false);
+  };
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -45,17 +55,43 @@ function App() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const location = useLocation(); // Need to import useLocation
+  const location = useLocation();
   const isAdmin = location.pathname.startsWith('/cineadmin');
 
   return (
     <ToastProvider>
+      <ScrollToTop />
+      {/* Admin "View as Free User" Floating Control */}
+      {viewAsSignedOut && realUser?.email === 'elbak89@gmail.com' && (
+        <div className="fixed top-6 right-6 z-[2000] animate-fade-in-up">
+          <button
+            onClick={toggleViewAsSignedOut}
+            className="w-14 h-14 rounded-full p-1 bg-gradient-to-r from-sky-500 to-purple-600 shadow-lg shadow-purple-500/30 hover:scale-105 transition-transform group relative"
+            title="Click to return to Admin view"
+          >
+            <img
+              src={realUser.photoURL}
+              alt="Admin"
+              className="w-full h-full rounded-full border-2 border-white object-cover"
+            />
+            <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center border-2 border-slate-900">
+              <span className="text-[10px] font-bold text-white">A</span>
+            </div>
+
+            {/* Tooltip on hover */}
+            <div className="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-slate-900/90 backdrop-blur text-white text-xs font-bold px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none border border-white/10">
+              Return to Admin View
+            </div>
+          </button>
+        </div>
+      )}
+
       {isAdmin ? (
         <Routes>
           <Route path="/cineadmin/*" element={<CineAdmin />} />
         </Routes>
       ) : (
-        <div className="min-h-screen p-6 md:p-12 md:pt-32 max-w-7xl mx-auto pb-24 md:pb-12">
+        <div className={`min-h-screen p-6 md:p-12 md:pt-32 max-w-7xl mx-auto pb-24 md:pb-12 ${viewAsSignedOut ? 'pt-16' : ''}`}>
           <header className="mb-16 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="text-center md:text-left relative md:hidden">
               <div className="absolute -left-20 -top-20 w-64 h-64 bg-sky-500/20 rounded-full blur-3xl pointer-events-none mix-blend-screen" />
@@ -96,12 +132,40 @@ function App() {
                     {showProfileMenu && (
                       <div className="absolute right-0 top-full mt-2 w-48 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-fade-in origin-top-right">
                         <div className="p-2 space-y-1">
+                          {/* Super Admin Link - Only visible to admin */}
+                          {realUser?.email === 'elbak89@gmail.com' && (
+                            <>
+                              <Link
+                                to="/cineadmin"
+                                onClick={() => setShowProfileMenu(false)}
+                                className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-white hover:bg-white/10 rounded-xl transition-colors"
+                              >
+                                <div className="w-4 h-4 rounded-full bg-sky-500 flex items-center justify-center">
+                                  <span className="text-[10px] font-bold text-black">A</span>
+                                </div>
+                                Super Admin
+                              </Link>
+
+                              <button
+                                onClick={() => {
+                                  toggleViewAsSignedOut();
+                                  setShowProfileMenu(false);
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-300 hover:bg-white/10 rounded-xl transition-colors text-left"
+                              >
+                                <div className="w-4 h-4 rounded-full border border-slate-500 flex items-center justify-center">
+                                  <span className="text-[10px] font-bold text-slate-500">?</span>
+                                </div>
+                                View As Free User
+                              </button>
+                            </>
+                          )}
                           <Link
                             to="/settings"
                             onClick={() => setShowProfileMenu(false)}
                             className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-white hover:bg-white/10 rounded-xl transition-colors"
                           >
-                            <SettingsIcon size={16} className="text-sky-400" /> Settings
+                            <SettingsIcon size={16} className="text-sky-400" /> My Profile
                           </Link>
                           <button
                             onClick={handleLogoutClick}
@@ -115,20 +179,21 @@ function App() {
                   </div>
                 </div>
               ) : (
-                <button onClick={signInWithGoogle} className="text-sm font-bold text-sky-400 hover:text-sky-300 transition-colors px-4">
+                <button onClick={() => setShowSignInModal(true)} className="text-sm font-bold text-sky-400 hover:text-sky-300 transition-colors px-4">
                   Sign In
                 </button>
               )}
             </div>
           </header>
 
-          <FloatingMenu />
+          <FloatingMenu onSignInClick={() => setShowSignInModal(true)} />
 
           <Routes>
-            <Route path="/" element={<Home />} />
+            <Route path="/" element={<Home onSignInClick={() => setShowSignInModal(true)} />} />
             <Route path="/ratings" element={<Ratings />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/movie/:id" element={<MovieDetails />} />
+            <Route path="/person/:id" element={<ActorDetails />} />
             <Route path="/watchlist" element={<Watchlist />} />
           </Routes>
 
@@ -144,6 +209,13 @@ function App() {
             confirmText="Sign Out"
             cancelText="Cancel"
             variant="danger"
+          />
+
+          {/* Sign In Modal */}
+          <SignInModal
+            isOpen={showSignInModal}
+            onClose={() => setShowSignInModal(false)}
+            onSignIn={handleSignIn}
           />
         </div>
       )}

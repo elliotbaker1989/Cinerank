@@ -133,7 +133,7 @@ export const MovieCard = ({ movie, index, listId, onRemove, variant = 'default' 
                 <RatingControls
                     movieId={movie.id}
                     userRating={getMovieRating(movie.id)}
-                    onRate={rateMovie}
+                    onRate={(movieId, rating) => rateMovie(movie, rating)}
                     size={14}
                     className="bg-slate-900/50 border-white/5 p-0.5"
                 />
