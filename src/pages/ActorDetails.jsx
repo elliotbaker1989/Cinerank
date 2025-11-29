@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Star, Watch, Clock, ThumbsUp, ThumbsDown, Film, Loader2, LayoutGrid, ChevronDown, Plus, Check, DollarSign, Clapperboard, Video, User, List, Heart, Trophy } from 'lucide-react';
+import { ArrowLeft, Star, Watch, Clock, ThumbsUp, ThumbsDown, Film, Loader2, LayoutGrid, ChevronDown, Plus, Check, DollarSign, Clapperboard, Video, User, Users, List, Heart, Trophy, Sparkles } from 'lucide-react';
 import { getPersonDetails, getPersonMovieCredits, getPersonTvCredits, getPersonCollaborators, discoverMovies, getMovieProviders, getMoviesDetails, IMAGE_BASE_URL } from '../services/api';
 import { getMovieStats } from '../utils/mockData';
 import { formatMoney } from '../utils/formatUtils';
 import { useMovieContext } from '../context/MovieContext';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
+import { getBillingCategory } from '../utils/billingUtils';
 
 import { StatsCard } from '../components/StatsCard';
 import { SubscriptionFilter } from '../components/SubscriptionFilter';
@@ -14,6 +15,42 @@ import SEO from '../components/SEO';
 import { generateMovieUrl } from '../utils/seoUtils';
 
 import { PosterMovieCard } from '../components/PosterMovieCard';
+
+const GENRE_COLORS = {
+    28: '#ef4444', // Action - Red
+    12: '#f97316', // Adventure - Orange
+    16: '#eab308', // Animation - Yellow
+    35: '#84cc16', // Comedy - Lime
+    80: '#10b981', // Crime - Emerald
+    99: '#06b6d4', // Documentary - Cyan
+    18: '#3b82f6', // Drama - Blue
+    10751: '#8b5cf6', // Family - Violet
+    14: '#d946ef', // Fantasy - Fuchsia
+    36: '#f43f5e', // History - Rose
+    27: '#9f1239', // Horror - Rose-900
+    10402: '#ec4899', // Music - Pink
+    9648: '#6366f1', // Mystery - Indigo
+    10749: '#ec4899', // Romance - Pink
+    878: '#14b8a6', // Science Fiction - Teal
+    10770: '#64748b', // TV Movie - Slate
+    53: '#f59e0b', // Thriller - Amber
+    10752: '#78716c', // War - Stone
+    37: '#a8a29e', // Western - Warm Gray
+};
+
+const GENRE_NAMES = {
+    28: 'Action', 12: 'Adventure', 16: 'Animation', 35: 'Comedy', 80: 'Crime',
+    99: 'Documentary', 18: 'Drama', 10751: 'Family', 14: 'Fantasy', 36: 'History',
+    27: 'Horror', 10402: 'Music', 9648: 'Mystery', 10749: 'Romance', 878: 'Sci-Fi',
+    10770: 'TV Movie', 53: 'Thriller', 10752: 'War', 37: 'Western'
+};
+
+const GENRE_ICONS = {
+    28: Film, 12: Film, 16: Sparkles, 35: Film, 80: Film,
+    99: Film, 18: Film, 10751: Film, 14: Film, 36: Film,
+    27: Film, 10402: Film, 9648: Film, 10749: Heart, 878: Film,
+    10770: Film, 53: Film, 10752: Film, 37: Film
+};
 
 const ActorDetails = () => {
     const { id } = useParams();
@@ -45,6 +82,8 @@ const ActorDetails = () => {
 
     // Role Filter State
     const [selectedRole, setSelectedRole] = useState('All'); // 'All', 'Actor', 'Director', 'Producer'
+    const [selectedGenres, setSelectedGenres] = useState([]); // Multi-select genre filter
+    const [selectedBilling, setSelectedBilling] = useState('All'); // 'All', 'Lead', 'Starring', etc.
 
     // Helper to find best rank across all lists
     const getBestRank = useCallback((movieId) => {
@@ -302,8 +341,118 @@ const ActorDetails = () => {
             filtered = filtered.filter(m => m.roles?.includes(selectedRole));
         }
 
+        // 4. Apply Genre Filter
+        if (selectedGenres.length > 0) {
+            filtered = filtered.filter(m =>
+                m.genre_ids?.some(id => selectedGenres.includes(id))
+            );
+        }
+
+        // 5. Apply Billing Filter
+        if (selectedBilling !== 'All') {
+            filtered = filtered.filter(m => {
+                if (typeof m.order !== 'number') return false;
+                return getBillingCategory(m.order) === selectedBilling;
+            });
+        }
+
         return filtered;
-    }, [sortedCredits, isSubsFilterActive, subscriptionMovieIds, activeProviderFilters, minRating, selectedRole]);
+    }, [sortedCredits, isSubsFilterActive, subscriptionMovieIds, activeProviderFilters, minRating, selectedRole, selectedGenres, selectedBilling]);
+
+    // Calculate Favored Genre
+    const favoredGenre = useMemo(() => {
+        if (!credits || credits.length === 0) return null;
+
+        const genreCounts = {};
+        credits.forEach(movie => {
+            if (movie.genre_ids) {
+                movie.genre_ids.forEach(id => {
+                    if (GENRE_NAMES[id]) {
+                        genreCounts[id] = (genreCounts[id] || 0) + 1;
+                    }
+                });
+            }
+        });
+
+        const sortedGenres = Object.entries(genreCounts)
+            .sort(([, a], [, b]) => b - a);
+
+        if (sortedGenres.length > 0) {
+            const [id, count] = sortedGenres[0];
+            return {
+                name: GENRE_NAMES[id],
+                color: GENRE_COLORS[id] || '#cbd5e1'
+            };
+        }
+        return null;
+    }, [credits]);
+
+    // Calculate Hero Stats (Average Rating & Box Office)
+    const heroStats = useMemo(() => {
+        if (!credits || credits.length === 0) return null;
+
+        const ratedMovies = credits.filter(m => m.vote_average > 0);
+        const avgRating = ratedMovies.length > 0
+            ? (ratedMovies.reduce((acc, m) => acc + m.vote_average, 0) / ratedMovies.length).toFixed(1)
+            : 'N/A';
+
+        const totalRevenue = credits.reduce((acc, m) => acc + (m.revenue || 0), 0);
+        const boxOffice = formatMoney(totalRevenue);
+
+        return { avgRating, boxOffice };
+    }, [credits]);
+
+
+
+    // Calculate Filter Counts (based on sortedCredits to show total available)
+    const filterCounts = useMemo(() => {
+        const counts = {
+            genres: {},
+            roles: { All: sortedCredits.length, Actor: 0, Director: 0, Producer: 0 },
+            ratings: { 9: 0, 8: 0, 7: 0, 6: 0, 0: sortedCredits.length },
+            billing: {
+                'Lead': 0,
+                'Starring': 0,
+                'Co-Starring': 0,
+                'Featured': 0,
+                'Minor Roles': 0,
+                'Blink & Miss': 0
+            }
+        };
+
+        sortedCredits.forEach(m => {
+            // Genre Counts
+            if (m.genre_ids) {
+                m.genre_ids.forEach(id => {
+                    counts.genres[id] = (counts.genres[id] || 0) + 1;
+                });
+            }
+
+            // Role Counts
+            if (m.roles) {
+                if (m.roles.includes('Actor')) counts.roles.Actor++;
+                if (m.roles.includes('Director')) counts.roles.Director++;
+                if (m.roles.includes('Producer')) counts.roles.Producer++;
+            }
+
+            // Rating Counts
+            const rating = m.vote_average || 0;
+            if (rating >= 9) counts.ratings[9]++;
+            if (rating >= 8) counts.ratings[8]++;
+            if (rating >= 7) counts.ratings[7]++;
+            if (rating >= 6) counts.ratings[6]++;
+
+            // Billing Counts
+            if (typeof m.order === 'number') {
+                const category = getBillingCategory(m.order);
+                if (counts.billing[category] !== undefined) {
+                    counts.billing[category]++;
+                }
+            }
+        });
+
+        return counts;
+    }, [sortedCredits]);
 
     // Filter movies for other tabs using visibleCredits
     const rankedMovies = visibleCredits.filter(m => getBestRank(m.id));
@@ -333,7 +482,7 @@ const ActorDetails = () => {
             <div className="relative">
                 {/* <div className="absolute inset-0 h-[50vh] bg-gradient-to-b from-slate-900/50 to-slate-900 z-0" /> */}
 
-                <div className="max-w-7xl mx-auto px-6 pt-24 pb-12 relative z-10 flex flex-col gap-8">
+                <div className="max-w-7xl mx-auto px-6 pt-12 pb-12 relative z-10 flex flex-col gap-8">
                     <div className="flex flex-col xl:flex-row gap-6 items-start">
                         <button
                             onClick={() => navigate(-1)}
@@ -359,6 +508,42 @@ const ActorDetails = () => {
 
                             {/* Interaction Card */}
                             <div className="flex flex-col gap-3 mt-4 w-48 md:w-64 mx-auto md:mx-0">
+                                {/* Hero Stats (Rating & Box Office) */}
+                                {heroStats && (
+                                    <div className="grid grid-cols-2 gap-2 mb-1">
+                                        <div className="bg-slate-800/50 rounded-lg p-2 text-center border border-white/5">
+                                            <div className="flex items-center justify-center gap-1 text-yellow-500 mb-0.5">
+                                                <Star size={12} fill="currentColor" />
+                                                <span className="text-xs font-bold">{heroStats.avgRating}</span>
+                                            </div>
+                                            <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Avg Rating</p>
+                                        </div>
+                                        <div className="bg-slate-800/50 rounded-lg p-2 text-center border border-white/5">
+                                            <div className="flex items-center justify-center gap-1 text-green-400 mb-0.5">
+                                                <DollarSign size={12} />
+                                                <span className="text-xs font-bold">{heroStats.boxOffice.replace('$', '')}</span>
+                                            </div>
+                                            <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Box Office</p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Favored Genre Tag */}
+                                {favoredGenre && (
+                                    <div className="flex items-center justify-center gap-2 mb-1">
+                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Favors</span>
+                                        <span
+                                            className="text-xs font-bold px-2 py-0.5 rounded-full text-white border"
+                                            style={{
+                                                backgroundColor: `${favoredGenre.color}20`,
+                                                borderColor: `${favoredGenre.color}40`,
+                                                color: favoredGenre.color
+                                            }}
+                                        >
+                                            {favoredGenre.name}
+                                        </span>
+                                    </div>
+                                )}
                                 {/* Like / Favorite Button */}
                                 <button
                                     onClick={(e) => {
@@ -437,7 +622,21 @@ const ActorDetails = () => {
 
                                 <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-slate-400 text-sm mb-6">
                                     {person.birthday && (
-                                        <span>Born: {new Date(person.birthday).toLocaleDateString()}</span>
+                                        <span>
+                                            Born: {new Date(person.birthday).toLocaleDateString()}
+                                            <span className="text-slate-500 ml-1">
+                                                ({(() => {
+                                                    const birth = new Date(person.birthday);
+                                                    const death = person.deathday ? new Date(person.deathday) : new Date();
+                                                    let age = death.getFullYear() - birth.getFullYear();
+                                                    const m = death.getMonth() - birth.getMonth();
+                                                    if (m < 0 || (m === 0 && death.getDate() < birth.getDate())) {
+                                                        age--;
+                                                    }
+                                                    return age;
+                                                })()} years old)
+                                            </span>
+                                        </span>
                                     )}
                                     {person.place_of_birth && (
                                         <span>• {person.place_of_birth}</span>
@@ -613,18 +812,22 @@ const ActorDetails = () => {
                                 <div className="absolute left-0 top-full mt-2 w-40 bg-slate-900 border border-white/10 rounded-xl shadow-xl overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
                                     <button
                                         onClick={() => setMinRating(0)}
-                                        className={`w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-white/5 transition-colors ${minRating === 0 ? 'text-sky-400' : 'text-slate-300'}`}
+                                        className={`w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-white/5 transition-colors flex justify-between items-center ${minRating === 0 ? 'text-sky-400' : 'text-slate-300'}`}
                                     >
-                                        Any Rating
+                                        <span>Any Rating</span>
+                                        <span className="text-xs text-slate-500 font-normal">{filterCounts.ratings[0]}</span>
                                     </button>
                                     {[9, 8, 7, 6].map(rating => (
                                         <button
                                             key={rating}
                                             onClick={() => setMinRating(rating)}
-                                            className={`w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-white/5 transition-colors flex items-center gap-2 ${minRating === rating ? 'text-yellow-400' : 'text-slate-300'}`}
+                                            className={`w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-white/5 transition-colors flex items-center justify-between ${minRating === rating ? 'text-yellow-400' : 'text-slate-300'}`}
                                         >
-                                            <Star size={14} className="fill-yellow-500 text-yellow-500" />
-                                            {rating}+ Stars
+                                            <div className="flex items-center gap-2">
+                                                <Star size={14} className="fill-yellow-500 text-yellow-500" />
+                                                <span>{rating}+ Stars</span>
+                                            </div>
+                                            <span className="text-xs text-slate-500 font-normal">{filterCounts.ratings[rating]}</span>
                                         </button>
                                     ))}
                                 </div>
@@ -650,32 +853,140 @@ const ActorDetails = () => {
                                 <div className="absolute left-0 top-full mt-2 w-40 bg-slate-900 border border-white/10 rounded-xl shadow-xl overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
                                     <button
                                         onClick={() => setSelectedRole('All')}
-                                        className={`w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-white/5 transition-colors flex items-center gap-2 ${selectedRole === 'All' ? 'text-purple-400' : 'text-slate-300'}`}
+                                        className={`w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-white/5 transition-colors flex items-center justify-between ${selectedRole === 'All' ? 'text-purple-400' : 'text-slate-300'}`}
                                     >
-                                        <Film size={14} />
-                                        All Roles
+                                        <div className="flex items-center gap-2">
+                                            <Film size={14} />
+                                            <span>All Roles</span>
+                                        </div>
+                                        <span className="text-xs text-slate-500 font-normal">{filterCounts.roles.All}</span>
                                     </button>
                                     <button
                                         onClick={() => setSelectedRole('Actor')}
-                                        className={`w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-white/5 transition-colors flex items-center gap-2 ${selectedRole === 'Actor' ? 'text-purple-400' : 'text-slate-300'}`}
+                                        className={`w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-white/5 transition-colors flex items-center justify-between ${selectedRole === 'Actor' ? 'text-purple-400' : 'text-slate-300'}`}
                                     >
-                                        <User size={14} />
-                                        Actor
+                                        <div className="flex items-center gap-2">
+                                            <User size={14} />
+                                            <span>Actor</span>
+                                        </div>
+                                        <span className="text-xs text-slate-500 font-normal">{filterCounts.roles.Actor}</span>
                                     </button>
                                     <button
                                         onClick={() => setSelectedRole('Director')}
-                                        className={`w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-white/5 transition-colors flex items-center gap-2 ${selectedRole === 'Director' ? 'text-purple-400' : 'text-slate-300'}`}
+                                        className={`w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-white/5 transition-colors flex items-center justify-between ${selectedRole === 'Director' ? 'text-purple-400' : 'text-slate-300'}`}
                                     >
-                                        <Video size={14} />
-                                        Director
+                                        <div className="flex items-center gap-2">
+                                            <Video size={14} />
+                                            <span>Director</span>
+                                        </div>
+                                        <span className="text-xs text-slate-500 font-normal">{filterCounts.roles.Director}</span>
                                     </button>
                                     <button
                                         onClick={() => setSelectedRole('Producer')}
-                                        className={`w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-white/5 transition-colors flex items-center gap-2 ${selectedRole === 'Producer' ? 'text-purple-400' : 'text-slate-300'}`}
+                                        className={`w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-white/5 transition-colors flex items-center justify-between ${selectedRole === 'Producer' ? 'text-purple-400' : 'text-slate-300'}`}
                                     >
-                                        <Clapperboard size={14} />
-                                        Producer
+                                        <div className="flex items-center gap-2">
+                                            <Clapperboard size={14} />
+                                            <span>Producer</span>
+                                        </div>
+                                        <span className="text-xs text-slate-500 font-normal">{filterCounts.roles.Producer}</span>
                                     </button>
+                                </div>
+                            </div>
+
+                            {/* Cast Type Filter Dropdown */}
+                            <div className="relative group z-30">
+                                <button className={`
+                                        flex items-center gap-2 px-3 py-1.5 rounded-full font-bold text-xs transition-all border
+                                        ${selectedBilling !== 'All'
+                                        ? 'bg-blue-500/10 text-blue-400 border-blue-500/50 hover:bg-blue-500/20'
+                                        : 'bg-slate-800/50 text-slate-400 border-white/10 hover:bg-slate-800 hover:text-white hover:border-white/20'
+                                    }
+                                    `}>
+                                    <Users size={14} className={selectedBilling !== 'All' ? "text-blue-400" : ""} />
+                                    <span>{selectedBilling !== 'All' ? selectedBilling : 'All Cast Types'}</span>
+                                    <ChevronDown size={12} />
+                                </button>
+
+                                <div className="absolute left-0 top-full mt-2 w-48 bg-slate-900 border border-white/10 rounded-xl shadow-xl overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
+                                    <button
+                                        onClick={() => setSelectedBilling('All')}
+                                        className={`w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-white/5 transition-colors flex justify-between items-center ${selectedBilling === 'All' ? 'text-blue-400' : 'text-slate-300'}`}
+                                    >
+                                        <span>All Cast Types</span>
+                                    </button>
+                                    {['Lead', 'Starring', 'Co-Starring', 'Featured', 'Minor Roles', 'Blink & Miss'].map(type => {
+                                        const count = filterCounts.billing[type] || 0;
+                                        if (count === 0) return null;
+                                        return (
+                                            <button
+                                                key={type}
+                                                onClick={() => setSelectedBilling(type)}
+                                                className={`w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-white/5 transition-colors flex items-center justify-between ${selectedBilling === type ? 'text-blue-400' : 'text-slate-300'}`}
+                                            >
+                                                <span>{type}</span>
+                                                <span className="text-xs text-slate-500 font-normal">{count}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Genre Filter Dropdown (Multi-select) */}
+                            <div className="relative group z-30">
+                                <button className={`
+                                        flex items-center gap-2 px-3 py-1.5 rounded-full font-bold text-xs transition-all border
+                                        ${selectedGenres.length > 0
+                                        ? 'bg-pink-500/10 text-pink-400 border-pink-500/50 hover:bg-pink-500/20'
+                                        : 'bg-slate-800/50 text-slate-400 border-white/10 hover:bg-slate-800 hover:text-white hover:border-white/20'
+                                    }
+                                    `}>
+                                    <LayoutGrid size={14} className={selectedGenres.length > 0 ? "text-pink-400" : ""} />
+                                    <span>{selectedGenres.length > 0 ? `${selectedGenres.length} Genres` : 'All Genres'}</span>
+                                    <ChevronDown size={12} />
+                                </button>
+
+                                <div className="absolute left-0 top-full mt-2 w-56 bg-slate-900 border border-white/10 rounded-xl shadow-xl overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all max-h-64 overflow-y-auto custom-scrollbar">
+                                    <div className="p-2 border-b border-white/5">
+                                        <button
+                                            onClick={() => setSelectedGenres([])}
+                                            className="w-full text-center py-1.5 text-xs font-bold text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                                        >
+                                            Clear All
+                                        </button>
+                                    </div>
+                                    {Object.entries(GENRE_NAMES).map(([id, name]) => {
+                                        const genreId = parseInt(id);
+                                        const isSelected = selectedGenres.includes(genreId);
+                                        const count = filterCounts.genres[genreId] || 0;
+                                        const Icon = GENRE_ICONS[genreId] || Film;
+
+                                        if (count === 0) return null; // Optional: Hide genres with 0 count
+
+                                        return (
+                                            <button
+                                                key={id}
+                                                onClick={(e) => {
+                                                    e.preventDefault(); // Prevent menu closing
+                                                    setSelectedGenres(prev =>
+                                                        prev.includes(genreId)
+                                                            ? prev.filter(g => g !== genreId)
+                                                            : [...prev, genreId]
+                                                    );
+                                                }}
+                                                className={`w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-white/5 transition-colors flex items-center justify-between ${isSelected ? 'text-pink-400' : 'text-slate-300'}`}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <Icon size={14} />
+                                                    <span>{name}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs text-slate-500 font-normal">{count}</span>
+                                                    {isSelected && <Check size={14} className="text-pink-400" />}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         </SubscriptionFilter>

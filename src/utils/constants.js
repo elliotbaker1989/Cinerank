@@ -1,4 +1,4 @@
-import { Film, Zap, Smile, Heart, Rocket, Skull, Ghost, Camera, User } from 'lucide-react';
+import { Film, Zap, Smile, Heart, Rocket, Skull, Ghost, Camera, User, Sparkles } from 'lucide-react';
 
 export const GENRES = [
     { id: 'all-time', label: 'All-Time', icon: Film },
@@ -8,6 +8,7 @@ export const GENRES = [
     { id: 'drama', label: 'Drama', icon: Heart },
     { id: 'horror', label: 'Horror', icon: Skull },
     { id: 'scifi', label: 'Sci-Fi', icon: Rocket },
+    { id: 'animation', label: 'Animation', icon: Sparkles },
     { id: 'romance', label: 'Romance', icon: Heart },
     { id: 'thriller', label: 'Thriller', icon: Ghost },
     { id: 'documentary', label: 'Documentary', icon: Camera },
@@ -17,6 +18,7 @@ export const GENRES = [
 export const GENRE_ID_MAP = {
     'Action': 'action',
     'Adventure': 'action', // Map Adventure to Action
+    'Animation': 'animation',
     'Comedy': 'comedy',
     'Drama': 'drama',
     'Horror': 'horror',

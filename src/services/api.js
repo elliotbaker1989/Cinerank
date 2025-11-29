@@ -213,7 +213,13 @@ export const getPersonMovieCredits = async (personId) => {
     // Process Cast (Actors)
     data.cast?.forEach(movie => {
         if (!movieMap.has(movie.id)) {
-            movieMap.set(movie.id, { ...mapMovie(movie), roles: [] });
+            movieMap.set(movie.id, { ...mapMovie(movie), roles: [], order: movie.order });
+        } else {
+            // If movie already exists (e.g. from crew), add order if it's missing (prioritize cast order)
+            const entry = movieMap.get(movie.id);
+            if (entry.order === undefined) {
+                entry.order = movie.order;
+            }
         }
         const entry = movieMap.get(movie.id);
 
@@ -299,12 +305,14 @@ export const getPersonCollaborators = async (personId, movieCredits) => {
         // Directors
         const directors = credits.crew?.filter(c => c.job === "Director") || [];
         directors.forEach(d => {
-            if (!directorStats[d.id]) {
-                directorStats[d.id] = { count: 0, name: d.name, image: d.profile_path, movies: [] };
-            }
-            directorStats[d.id].count++;
-            if (!directorStats[d.id].movies.includes(movieTitle)) {
-                directorStats[d.id].movies.push(movieTitle);
+            if (d.id !== parseInt(personId)) { // Exclude self from directors too
+                if (!directorStats[d.id]) {
+                    directorStats[d.id] = { count: 0, name: d.name, image: d.profile_path, movies: [] };
+                }
+                directorStats[d.id].count++;
+                if (!directorStats[d.id].movies.includes(movieTitle)) {
+                    directorStats[d.id].movies.push(movieTitle);
+                }
             }
         });
 
@@ -329,15 +337,14 @@ export const getPersonCollaborators = async (personId, movieCredits) => {
         if (!topDirector || d.count > topDirector.count) topDirector = d;
     });
 
-    // Find top co-star
-    let topCostar = null;
-    Object.values(costarStats).forEach(c => {
-        if (!topCostar || c.count > topCostar.count) topCostar = c;
-    });
+    // Find top co-stars (Top 3)
+    const topCostars = Object.values(costarStats)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 3);
 
     return {
         frequentDirector: topDirector,
-        frequentCostar: topCostar
+        topCostars: topCostars
     };
 };
 
