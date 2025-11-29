@@ -17,10 +17,13 @@ import {
     verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { MovieCard } from './MovieCard';
+import { ActorCard } from './ActorCard';
 import MovieCardOverlay from './MovieCardOverlay';
 import DroppableEmptyZone from './DroppableEmptyZone';
 import { useMovieContext } from '../context/MovieContext';
-import { Film, Search } from 'lucide-react';
+import { useToast } from '../context/ToastContext';
+import { GENRES } from '../utils/constants';
+import { Film, Search, Trophy } from 'lucide-react';
 
 
 const DroppableSection = ({ id, children, className }) => {
@@ -34,7 +37,9 @@ const DroppableSection = ({ id, children, className }) => {
 
 export const MovieList = ({ listId }) => {
     const { lists, reorderList, removeMovie } = useMovieContext();
-    const allMovies = lists[listId] || [];
+    const { showToast } = useToast();
+    const rawList = lists && lists[listId];
+    const allMovies = Array.isArray(rawList) ? rawList : [];
 
     const [expanded21Plus, setExpanded21Plus] = React.useState(false);
     const [expandedUnranked, setExpandedUnranked] = React.useState(false);
@@ -47,7 +52,7 @@ export const MovieList = ({ listId }) => {
 
     // Filter unranked movies by search
     const filteredUnrankedMovies = unrankedMovies.filter(movie =>
-        movie.title.toLowerCase().includes(unrankedSearch.toLowerCase())
+        (movie.title || movie.name || '').toLowerCase().includes(unrankedSearch.toLowerCase())
     );
 
     const sensors = useSensors(
@@ -202,6 +207,23 @@ export const MovieList = ({ listId }) => {
             }
 
             reorderList(listId, newOrder);
+
+            // Show toast if ranked
+            if (!activeItem.unranked) {
+                const rank = newIndex + 1;
+                const listName = GENRES.find(g => g.id === listId)?.label || 'List';
+                const itemName = activeItem.title || activeItem.name;
+
+                showToast({
+                    message: <span><span className="font-bold text-white">{itemName}</span> is now ranked #{rank} in {listName}</span>,
+                    type: 'info',
+                    icon: <Trophy size={18} className="text-yellow-500" />,
+                    action: {
+                        label: 'Undo',
+                        onClick: () => reorderList(listId, allMovies)
+                    }
+                });
+            }
         }
     };
 
@@ -215,7 +237,7 @@ export const MovieList = ({ listId }) => {
                 </div>
                 <h3 className="text-xl font-bold text-slate-200 mb-2">Your list is empty</h3>
                 <p className="text-slate-400 max-w-xs mx-auto">
-                    Search for movies above to start building your collection.
+                    Search for {listId === 'actors' ? 'actors' : 'movies'} above to start building your collection.
                 </p>
             </div>
         );
@@ -245,14 +267,25 @@ export const MovieList = ({ listId }) => {
                             <DroppableEmptyZone />
                         ) : (
                             rankedMovies.slice(0, 10).map((movie, index) => (
-                                <MovieCard
-                                    key={movie.uniqueId}
-                                    movie={movie}
-                                    index={index}
-                                    listId={listId}
-                                    onRemove={removeMovie}
-                                    variant="top10"
-                                />
+                                listId === 'actors' ? (
+                                    <ActorCard
+                                        key={movie.uniqueId}
+                                        actor={movie}
+                                        index={index}
+                                        listId={listId}
+                                        onRemove={removeMovie}
+                                        variant="top10"
+                                    />
+                                ) : (
+                                    <MovieCard
+                                        key={movie.uniqueId}
+                                        movie={movie}
+                                        index={index}
+                                        listId={listId}
+                                        onRemove={removeMovie}
+                                        variant="top10"
+                                    />
+                                )
                             ))
                         )}
                     </SortableContext>
@@ -268,14 +301,25 @@ export const MovieList = ({ listId }) => {
                             strategy={verticalListSortingStrategy}
                         >
                             {rankedMovies.slice(10, 20).map((movie, index) => (
-                                <MovieCard
-                                    key={movie.uniqueId}
-                                    movie={movie}
-                                    index={index + 10}
-                                    listId={listId}
-                                    onRemove={removeMovie}
-                                    variant="muted"
-                                />
+                                listId === 'actors' ? (
+                                    <ActorCard
+                                        key={movie.uniqueId}
+                                        actor={movie}
+                                        index={index + 10}
+                                        listId={listId}
+                                        onRemove={removeMovie}
+                                        variant="muted"
+                                    />
+                                ) : (
+                                    <MovieCard
+                                        key={movie.uniqueId}
+                                        movie={movie}
+                                        index={index + 10}
+                                        listId={listId}
+                                        onRemove={removeMovie}
+                                        variant="muted"
+                                    />
+                                )
                             ))}
                         </SortableContext>
                     </DroppableSection>
@@ -289,7 +333,7 @@ export const MovieList = ({ listId }) => {
                             className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors w-full py-2"
                         >
                             <span className="text-lg font-bold">Ranks 21+</span>
-                            <span className="text-xs bg-slate-800 px-2 py-1 rounded-full">{rankedMovies.length - 20} movies</span>
+                            <span className="text-xs bg-slate-800 px-2 py-1 rounded-full">{rankedMovies.length - 20} {listId === 'actors' ? 'actors' : 'movies'}</span>
                             <span className={`transform transition-transform ${expanded21Plus ? 'rotate-180' : ''}`}>▼</span>
                         </button>
 
@@ -301,14 +345,25 @@ export const MovieList = ({ listId }) => {
                             >
                                 <div className="space-y-3 animate-in fade-in slide-in-from-top-4 duration-300">
                                     {rankedMovies.slice(20).map((movie, index) => (
-                                        <MovieCard
-                                            key={movie.uniqueId}
-                                            movie={movie}
-                                            index={index + 20}
-                                            listId={listId}
-                                            onRemove={removeMovie}
-                                            variant="muted"
-                                        />
+                                        listId === 'actors' ? (
+                                            <ActorCard
+                                                key={movie.uniqueId}
+                                                actor={movie}
+                                                index={index + 20}
+                                                listId={listId}
+                                                onRemove={removeMovie}
+                                                variant="muted"
+                                            />
+                                        ) : (
+                                            <MovieCard
+                                                key={movie.uniqueId}
+                                                movie={movie}
+                                                index={index + 20}
+                                                listId={listId}
+                                                onRemove={removeMovie}
+                                                variant="muted"
+                                            />
+                                        )
                                     ))}
                                 </div>
                             </SortableContext>
@@ -324,7 +379,7 @@ export const MovieList = ({ listId }) => {
                             className="flex items-center gap-2 text-sky-400 hover:text-sky-300 transition-colors w-full py-2"
                         >
                             <span className="text-lg font-bold">Unranked Collection</span>
-                            <span className="text-xs bg-sky-500/10 px-2 py-1 rounded-full border border-sky-500/20">{unrankedMovies.length} movies</span>
+                            <span className="text-xs bg-sky-500/10 px-2 py-1 rounded-full border border-sky-500/20">{unrankedMovies.length} {listId === 'actors' ? 'actors' : 'movies'}</span>
                             <span className={`transform transition-transform ${expandedUnranked ? 'rotate-180' : ''}`}>▼</span>
                         </button>
 
@@ -334,7 +389,7 @@ export const MovieList = ({ listId }) => {
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
                                     <input
                                         type="text"
-                                        placeholder="Filter unranked movies..."
+                                        placeholder={`Filter unranked ${listId === 'actors' ? 'actors' : 'movies'}...`}
                                         value={unrankedSearch}
                                         onChange={(e) => setUnrankedSearch(e.target.value)}
                                         className="w-full pl-10 pr-4 py-2 bg-slate-800/50 border border-white/10 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:border-sky-500/50 focus:bg-slate-800/80 transition-colors"
@@ -349,14 +404,25 @@ export const MovieList = ({ listId }) => {
                                     <div className="space-y-3 animate-in fade-in slide-in-from-top-4 duration-300">
                                         {filteredUnrankedMovies.length > 0 ? (
                                             filteredUnrankedMovies.map((movie) => (
-                                                <MovieCard
-                                                    key={movie.uniqueId}
-                                                    movie={movie}
-                                                    index={-1}
-                                                    listId={listId}
-                                                    onRemove={removeMovie}
-                                                    variant="unranked"
-                                                />
+                                                listId === 'actors' ? (
+                                                    <ActorCard
+                                                        key={movie.uniqueId}
+                                                        actor={movie}
+                                                        index={-1}
+                                                        listId={listId}
+                                                        onRemove={removeMovie}
+                                                        variant="unranked"
+                                                    />
+                                                ) : (
+                                                    <MovieCard
+                                                        key={movie.uniqueId}
+                                                        movie={movie}
+                                                        index={-1}
+                                                        listId={listId}
+                                                        onRemove={removeMovie}
+                                                        variant="unranked"
+                                                    />
+                                                )
                                             ))
                                         ) : (
                                             <p className="text-slate-500 text-sm italic py-4">
@@ -374,11 +440,21 @@ export const MovieList = ({ listId }) => {
             {typeof document !== 'undefined' && createPortal(
                 <DragOverlay dropAnimation={null} style={{ zIndex: 9999 }}>
                     {activeMovie ? (
-                        <MovieCardOverlay
-                            movie={activeMovie}
-                            variant="default"
-                            className="opacity-90 shadow-2xl cursor-grabbing"
-                        />
+                        listId === 'actors' ? (
+                            <ActorCard
+                                actor={activeMovie}
+                                index={-1}
+                                listId={listId}
+                                variant="default"
+                                className="opacity-90 shadow-2xl cursor-grabbing"
+                            />
+                        ) : (
+                            <MovieCardOverlay
+                                movie={activeMovie}
+                                variant="default"
+                                className="opacity-90 shadow-2xl cursor-grabbing"
+                            />
+                        )
                     ) : null}
                 </DragOverlay>,
                 document.body

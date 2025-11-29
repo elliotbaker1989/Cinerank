@@ -20,7 +20,9 @@ const INITIAL_LISTS = {
     'scifi': [],
     'romance': [],
     'thriller': [],
+    'thriller': [],
     'documentary': [],
+    'actors': [],
 
 };
 
@@ -30,31 +32,56 @@ export const MovieProvider = ({ children }) => {
     // Load from local storage or use initial state
     const [lists, setLists] = useState(() => {
         const saved = localStorage.getItem('cinerank-lists');
-        return saved ? JSON.parse(saved) : INITIAL_LISTS;
+        let parsed = null;
+        try {
+            parsed = saved ? JSON.parse(saved) : null;
+        } catch (e) {
+            console.error("Error parsing lists from local storage", e);
+        }
+        return parsed ? { ...INITIAL_LISTS, ...parsed } : INITIAL_LISTS;
     });
 
     const [activeListId, setActiveListId] = useState('all-time');
 
     const [ratings, setRatings] = useState(() => {
         const saved = localStorage.getItem('cinerank-ratings');
-        return saved ? JSON.parse(saved) : {};
+        try {
+            return saved ? JSON.parse(saved) : {};
+        } catch (e) {
+            return {};
+        }
+    });
+
+    const [ratingsMeta, setRatingsMeta] = useState(() => {
+        const saved = localStorage.getItem('cinerank-ratings-meta');
+        try {
+            return saved ? JSON.parse(saved) : {};
+        } catch (e) {
+            return {};
+        }
     });
 
     const [watched, setWatched] = useState(() => {
         const saved = localStorage.getItem('cinerank-watched');
-        return saved ? JSON.parse(saved) : {};
+        try {
+            return saved ? JSON.parse(saved) : {};
+        } catch (e) {
+            return {};
+        }
     });
 
     // Refs to track current state for onSnapshot comparison and immediate saves
     const listsRef = useRef(lists);
     const ratingsRef = useRef(ratings);
+    const ratingsMetaRef = useRef(ratingsMeta);
     const watchedRef = useRef(watched);
 
     useEffect(() => {
         listsRef.current = lists;
         ratingsRef.current = ratings;
+        ratingsMetaRef.current = ratingsMeta;
         watchedRef.current = watched;
-    }, [lists, ratings, watched]);
+    }, [lists, ratings, ratingsMeta, watched]);
 
     // Sync with Firestore when User logs in
     useEffect(() => {
@@ -67,13 +94,16 @@ export const MovieProvider = ({ children }) => {
 
                 // Use refs to compare with CURRENT state, not stale closure state
                 if (data.lists && JSON.stringify(data.lists) !== JSON.stringify(listsRef.current)) {
-                    setLists(data.lists);
+                    setLists(data.lists || INITIAL_LISTS);
                 }
                 if (data.ratings && JSON.stringify(data.ratings) !== JSON.stringify(ratingsRef.current)) {
-                    setRatings(data.ratings);
+                    setRatings(data.ratings || {});
+                }
+                if (data.ratingsMeta && JSON.stringify(data.ratingsMeta) !== JSON.stringify(ratingsMetaRef.current)) {
+                    setRatingsMeta(data.ratingsMeta || {});
                 }
                 if (data.watched && JSON.stringify(data.watched) !== JSON.stringify(watchedRef.current)) {
-                    setWatched(data.watched);
+                    setWatched(data.watched || {});
                 }
             }
         });
@@ -91,6 +121,10 @@ export const MovieProvider = ({ children }) => {
     }, [ratings]);
 
     useEffect(() => {
+        localStorage.setItem('cinerank-ratings-meta', JSON.stringify(ratingsMeta));
+    }, [ratingsMeta]);
+
+    useEffect(() => {
         localStorage.setItem('cinerank-watched', JSON.stringify(watched));
     }, [watched]);
 
@@ -101,11 +135,13 @@ export const MovieProvider = ({ children }) => {
             try {
                 const sanitizedLists = lists ? JSON.parse(JSON.stringify(lists)) : {};
                 const sanitizedRatings = ratings ? JSON.parse(JSON.stringify(ratings)) : {};
+                const sanitizedRatingsMeta = ratingsMeta ? JSON.parse(JSON.stringify(ratingsMeta)) : {};
                 const sanitizedWatched = watched ? JSON.parse(JSON.stringify(watched)) : {};
 
                 await setDoc(doc(db, 'users', user.uid), {
                     lists: sanitizedLists,
                     ratings: sanitizedRatings,
+                    ratingsMeta: sanitizedRatingsMeta,
                     watched: sanitizedWatched
                 }, { merge: true });
             } catch (error) {
@@ -114,15 +150,18 @@ export const MovieProvider = ({ children }) => {
         };
         const timeoutId = setTimeout(saveToFirestore, 2000); // Increased debounce since we have immediate saves
         return () => clearTimeout(timeoutId);
-    }, [lists, ratings, watched, user]);
+    }, [lists, ratings, ratingsMeta, watched, user]);
 
     // ... (addMovie, removeMovie, etc. - keep existing logic but maybe add immediate save if needed later)
     // For now, we focus on toggleWatched and rateMovie as requested.
 
     const addMovie = (targetListId, movie) => {
+        const uniqueId = crypto.randomUUID();
+        const timestamp = new Date().toISOString(); // Add timestamp
+
         setLists(prev => {
             const newLists = { ...prev };
-            const movieWithId = { ...movie, uniqueId: crypto.randomUUID(), unranked: true };
+            const movieWithId = { ...movie, uniqueId, unranked: true, timestamp };
 
             // Helper to add to a specific list
             const addToList = (listId) => {
@@ -137,13 +176,13 @@ export const MovieProvider = ({ children }) => {
                 addToList(targetListId);
             }
 
-            // 2. Add to 'all-time' (default) - ONLY if not adding to watchlist
-            if (targetListId !== 'watchlist') {
+            // 2. Add to 'all-time' (default) - ONLY if not adding to watchlist AND not an actor
+            if (targetListId !== 'watchlist' && targetListId !== 'actors') {
                 addToList('all-time');
             }
 
-            // 3. Add to matching genre lists - ONLY if not adding to watchlist
-            if (targetListId !== 'watchlist' && movie.genres) {
+            // 3. Add to matching genre lists - ONLY if not adding to watchlist AND not an actor
+            if (targetListId !== 'watchlist' && targetListId !== 'actors' && movie.genres) {
                 movie.genres.forEach(genre => {
                     const mappedListId = GENRE_ID_MAP[genre.name];
                     if (mappedListId) {
@@ -167,7 +206,7 @@ export const MovieProvider = ({ children }) => {
                             movieId: movie.id,
                             movieTitle: movie.title,
                             posterPath: movie.poster_path,
-                            timestamp: new Date().toISOString()
+                            timestamp: timestamp
                         });
                     }
                     // If adding to Rankings (not watchlist)
@@ -178,7 +217,7 @@ export const MovieProvider = ({ children }) => {
                             movieId: movie.id,
                             movieTitle: movie.title,
                             posterPath: movie.poster_path,
-                            timestamp: new Date().toISOString()
+                            timestamp: timestamp
                         });
                     }
                 } catch (error) {
@@ -187,6 +226,8 @@ export const MovieProvider = ({ children }) => {
             };
             saveToGlobal();
         }
+
+        return uniqueId;
     };
 
     const moveToUnranked = (listId, movieId) => {
@@ -273,9 +314,11 @@ export const MovieProvider = ({ children }) => {
     };
 
     const rateMovie = async (movie, rating) => {
+        const timestamp = new Date().toISOString();
+
         // Optimistic update for local state
         setRatings(prev => {
-            if (prev[movie.id] === rating) {
+            if (rating === null || prev[movie.id] === rating) {
                 const newRatings = { ...prev };
                 delete newRatings[movie.id];
                 return newRatings;
@@ -286,19 +329,33 @@ export const MovieProvider = ({ children }) => {
             };
         });
 
+        // Update Ratings Meta (Timestamp)
+        setRatingsMeta(prev => {
+            const safePrev = prev || {};
+            if (rating === null || safePrev[movie.id]?.value === rating) {
+                const newMeta = { ...safePrev };
+                delete newMeta[movie.id];
+                return newMeta;
+            }
+            return {
+                ...safePrev,
+                [movie.id]: { value: rating, timestamp }
+            };
+        });
+
         if (user) {
             try {
                 // 1. Save to global 'ratings' collection
                 const ratingId = `${user.uid}_${movie.id}`;
                 const ratingDocRef = doc(db, 'ratings', ratingId);
 
-                if (ratingsRef.current[movie.id] === rating) {
-                    // Toggle off
+                if (rating === null || ratingsRef.current[movie.id] === rating) {
+                    // Toggle off or explicit remove
                     await setDoc(ratingDocRef, {
                         userId: user.uid,
                         movieId: movie.id,
                         rating: null,
-                        timestamp: new Date().toISOString(),
+                        timestamp: timestamp,
                         movieTitle: movie.title,
                         posterPath: movie.poster_path
                     });
@@ -308,17 +365,20 @@ export const MovieProvider = ({ children }) => {
                         userId: user.uid,
                         movieId: movie.id,
                         rating: rating,
-                        timestamp: new Date().toISOString(),
+                        timestamp: timestamp,
                         movieTitle: movie.title,
                         posterPath: movie.poster_path
                     });
                 }
 
                 // 2. IMMEDIATE SYNC to users/{uid} using ATOMIC updates
-                if (ratingsRef.current[movie.id] === rating) {
+                if (rating === null || ratingsRef.current[movie.id] === rating) {
                     // Removing rating
                     await setDoc(doc(db, 'users', user.uid), {
                         ratings: {
+                            [movie.id]: deleteField()
+                        },
+                        ratingsMeta: {
                             [movie.id]: deleteField()
                         }
                     }, { merge: true });
@@ -327,6 +387,9 @@ export const MovieProvider = ({ children }) => {
                     await setDoc(doc(db, 'users', user.uid), {
                         ratings: {
                             [movie.id]: rating
+                        },
+                        ratingsMeta: {
+                            [movie.id]: { value: rating, timestamp }
                         }
                     }, { merge: true });
                 }
@@ -393,6 +456,17 @@ export const MovieProvider = ({ children }) => {
 
     const getMovieRating = (movieId) => ratings[movieId];
 
+    const addToWatchlist = (movie) => {
+        addMovie('watchlist', movie);
+    };
+
+    const removeFromWatchlist = (movieId) => {
+        const movieToRemove = lists.watchlist.find(m => m.id === movieId);
+        if (movieToRemove) {
+            removeMovie('watchlist', movieToRemove.uniqueId);
+        }
+    };
+
     return (
         <MovieContext.Provider value={{
             lists,
@@ -405,10 +479,13 @@ export const MovieProvider = ({ children }) => {
             undoMoveToUnranked,
             reorderList,
             ratings,
+            ratingsMeta,
             rateMovie,
             getMovieRating,
             watched,
-            toggleWatched
+            toggleWatched,
+            addToWatchlist,
+            removeFromWatchlist
         }}>
             {children}
         </MovieContext.Provider>

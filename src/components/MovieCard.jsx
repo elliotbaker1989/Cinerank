@@ -83,9 +83,11 @@ export const MovieCard = ({ movie, index, listId, onRemove, variant = 'default' 
         <div
             ref={setNodeRef}
             style={style}
+            {...attributes}
+            {...listeners}
             className={`
                 group relative flex items-center gap-4 backdrop-blur-sm p-3 rounded-xl border 
-                hover:bg-slate-800/90 transition-all cursor-pointer
+                hover:bg-slate-800/90 transition-all cursor-grab active:cursor-grabbing
                 ${getVariantStyles()}
                 ${isDragging ? 'opacity-50 shadow-xl scale-105 ring-2 ring-sky-500 z-50' : 'hover:border-white/10'}
             `}
@@ -141,13 +143,9 @@ export const MovieCard = ({ movie, index, listId, onRemove, variant = 'default' 
 
             {/* Actions */}
             <div className="flex items-center gap-1">
-                <button
-                    {...attributes}
-                    {...listeners}
-                    className="drag-handle p-2 text-slate-600 hover:text-slate-300 cursor-grab active:cursor-grabbing hover:bg-white/5 rounded-lg transition-colors"
-                >
+                <div className="p-2 text-slate-600 group-hover:text-slate-500 transition-colors">
                     <GripVertical size={16} />
-                </button>
+                </div>
                 <button
                     onClick={handleRemove}
                     className="remove-btn opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-red-500/20 rounded-lg text-red-400 hover:text-red-300"

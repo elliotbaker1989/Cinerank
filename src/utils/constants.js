@@ -1,7 +1,8 @@
-import { Film, Zap, Smile, Heart, Rocket, Skull, Ghost, Camera } from 'lucide-react';
+import { Film, Zap, Smile, Heart, Rocket, Skull, Ghost, Camera, User } from 'lucide-react';
 
 export const GENRES = [
     { id: 'all-time', label: 'All-Time', icon: Film },
+    { id: 'actors', label: 'Actors', icon: User },
     { id: 'action', label: 'Action', icon: Zap },
     { id: 'comedy', label: 'Comedy', icon: Smile },
     { id: 'drama', label: 'Drama', icon: Heart },

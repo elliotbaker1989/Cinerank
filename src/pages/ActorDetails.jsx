@@ -1,11 +1,13 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Star, List, ThumbsUp, ThumbsDown, Film, Loader2, LayoutGrid, ChevronDown, Plus, Check, DollarSign, Clapperboard, Video, User } from 'lucide-react';
+import { ArrowLeft, Star, Watch, Clock, ThumbsUp, ThumbsDown, Film, Loader2, LayoutGrid, ChevronDown, Plus, Check, DollarSign, Clapperboard, Video, User, List, Heart, Trophy } from 'lucide-react';
 import { getPersonDetails, getPersonMovieCredits, getPersonTvCredits, getPersonCollaborators, discoverMovies, getMovieProviders, getMoviesDetails, IMAGE_BASE_URL } from '../services/api';
 import { getMovieStats } from '../utils/mockData';
 import { formatMoney } from '../utils/formatUtils';
 import { useMovieContext } from '../context/MovieContext';
+import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 import { StatsCard } from '../components/StatsCard';
 import { SubscriptionFilter } from '../components/SubscriptionFilter';
@@ -17,8 +19,9 @@ import { PosterMovieCard } from '../components/PosterMovieCard';
 const ActorDetails = () => {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { ratings, lists } = useMovieContext();
+    const { ratings, lists, addMovie, removeMovie, undoRemove } = useMovieContext();
     const { user, selectedRegion, selectedProviders } = useAuth();
+    const { showToast } = useToast();
 
     const [person, setPerson] = useState(null);
     const [credits, setCredits] = useState([]);
@@ -110,12 +113,15 @@ const ActorDetails = () => {
                     return new Date(b.release_date) - new Date(a.release_date);
                 });
 
+                setCredits(filteredCredits);
+                setCreditsData(filteredCredits);
+                setLoading(false); // RENDER IMMEDIATELY
+
                 // Fetch collaborators in background
                 getPersonCollaborators(id, sortedCredits).then(setCollaborators);
 
-                // Fetch real stats (budget/revenue) for all movies to populate StatsCard and List Items accurately
+                // Fetch real stats (budget/revenue) for all movies in BACKGROUND
                 const moviesToFetch = sortedCredits;
-                let finalCredits = sortedCredits;
 
                 if (moviesToFetch.length > 0) {
                     try {
@@ -140,7 +146,7 @@ const ActorDetails = () => {
                         });
 
                         // Filter out "TBA" / Future movies that are NOT "In Production" or "Post Production"
-                        finalCredits = updatedCredits.filter(movie => {
+                        const finalCredits = updatedCredits.filter(movie => {
                             const releaseDate = movie.release_date ? new Date(movie.release_date) : null;
                             const isFuture = !releaseDate || releaseDate > new Date();
 
@@ -151,23 +157,23 @@ const ActorDetails = () => {
                             }
                             return true; // Show all released movies
                         });
+
+                        setCredits(finalCredits);
+                        setCreditsData(finalCredits);
+
                     } catch (err) {
                         console.error("Failed to fetch movie details, falling back to basic credits", err);
                     }
                 }
 
-                setCredits(finalCredits);
-                setCreditsData(finalCredits);
-
             } catch (error) {
                 console.error("Failed to fetch person details", error);
-            } finally {
                 setLoading(false);
             }
         };
 
         fetchData();
-    }, [id, lists, getBestRank]);
+    }, [id]);
 
     // Fetch Subscription Movies when filter is active
     useEffect(() => {
@@ -326,7 +332,7 @@ const ActorDetails = () => {
             />
             {/* Header / Bio Section */}
             <div className="relative">
-                <div className="absolute inset-0 h-[50vh] bg-gradient-to-b from-slate-900/50 to-slate-900 z-0" />
+                {/* <div className="absolute inset-0 h-[50vh] bg-gradient-to-b from-slate-900/50 to-slate-900 z-0" /> */}
 
                 <div className="max-w-7xl mx-auto px-6 pt-24 pb-12 relative z-10 flex flex-col gap-8">
                     <div className="flex flex-col xl:flex-row gap-6 items-start">
@@ -337,7 +343,7 @@ const ActorDetails = () => {
                             <ArrowLeft size={24} />
                         </button>
 
-                        <div className="flex-1 bg-slate-900/50 backdrop-blur-sm border border-white/10 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row gap-8 items-start w-full">
+                        <div className="flex-1 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row gap-8 items-start w-full">
                             <div className="w-48 md:w-64 shrink-0 rounded-2xl overflow-hidden shadow-2xl border border-white/10 mx-auto md:mx-0">
                                 {person.profile_path ? (
                                     <img
@@ -350,6 +356,81 @@ const ActorDetails = () => {
                                         No Image
                                     </div>
                                 )}
+                            </div>
+
+                            {/* Interaction Card */}
+                            <div className="flex flex-col gap-3 mt-4 w-48 md:w-64 mx-auto md:mx-0">
+                                {/* Like / Favorite Button */}
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        const isFavorite = lists?.favorites?.some(a => a.id === person.id);
+                                        if (isFavorite) {
+                                            const removed = removeMovie('favorites', lists.favorites.find(a => a.id === person.id).uniqueId);
+                                            showToast({
+                                                message: `Removed ${person.name} from favorites`,
+                                                type: 'info',
+                                                action: {
+                                                    label: 'Undo',
+                                                    onClick: () => undoRemove('favorites', removed)
+                                                }
+                                            });
+                                        } else {
+                                            addMovie('favorites', person);
+                                            showToast({
+                                                message: `Added ${person.name} to favorites`,
+                                                type: 'like'
+                                            });
+                                        }
+                                    }}
+                                    className={`
+                                        flex items-center justify-center gap-2 py-3 rounded-xl font-bold transition-all border
+                                        ${lists?.favorites?.some(a => a.id === person.id)
+                                            ? 'bg-red-500/10 text-red-500 border-red-500/50 hover:bg-red-500/20'
+                                            : 'bg-slate-800/50 text-slate-400 border-white/10 hover:bg-slate-800 hover:text-white hover:border-white/20'
+                                        }
+                                    `}
+                                >
+                                    <Heart size={20} className={lists?.favorites?.some(a => a.id === person.id) ? "fill-current" : ""} />
+                                    <span>{lists?.favorites?.some(a => a.id === person.id) ? 'Liked' : 'Like'}</span>
+                                </button>
+
+                                {/* Rank Button */}
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        const isRanked = lists?.actors?.some(a => a.id === person.id);
+                                        if (isRanked) {
+                                            const removed = removeMovie('actors', lists.actors.find(a => a.id === person.id).uniqueId);
+                                            showToast({
+                                                message: `Removed ${person.name} from rankings`,
+                                                type: 'info',
+                                                action: {
+                                                    label: 'Undo',
+                                                    onClick: () => undoRemove('actors', removed)
+                                                }
+                                            });
+                                        } else {
+                                            addMovie('actors', person);
+                                            showToast({
+                                                message: `Added ${person.name} to rankings`,
+                                                type: 'rank'
+                                            });
+                                        }
+                                    }}
+                                    className={`
+                                        flex items-center justify-center gap-2 py-3 rounded-xl font-bold transition-all border
+                                        ${lists?.actors?.some(a => a.id === person.id)
+                                            ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/50 hover:bg-yellow-500/20'
+                                            : 'bg-slate-800/50 text-slate-400 border-white/10 hover:bg-slate-800 hover:text-white hover:border-white/20'
+                                        }
+                                    `}
+                                >
+                                    <Trophy size={20} className={lists?.actors?.some(a => a.id === person.id) ? "fill-current" : ""} />
+                                    <span>{lists?.actors?.some(a => a.id === person.id) ? 'Ranked' : 'Rank'}</span>
+                                </button>
                             </div>
 
                             <div className="flex-1 text-center md:text-left min-w-0">
@@ -422,7 +503,7 @@ const ActorDetails = () => {
                             <TabButton
                                 active={activeTab === 'watchlist'}
                                 onClick={() => setActiveTab('watchlist')}
-                                icon={<List size={18} />}
+                                icon={<Watch size={18} />}
                                 label="Watchlist"
                                 count={watchlistMovies.length}
                             />
@@ -697,6 +778,7 @@ const TabButton = ({ active, onClick, icon, label, count }) => (
 const MovieListItem = ({ movie, rank, userRating }) => {
     const navigate = useNavigate();
     const { lists, addToWatchlist, removeFromWatchlist } = useMovieContext();
+    const { showToast } = useToast();
     const { selectedProviders } = useAuth();
     const inWatchlist = lists?.watchlist?.some(m => m.id === movie.id);
 
@@ -745,8 +827,18 @@ const MovieListItem = ({ movie, rank, userRating }) => {
         e.stopPropagation();
         if (inWatchlist) {
             removeFromWatchlist(movie.id);
+            showToast({
+                message: `${movie.title} removed from Watchlist`,
+                type: 'info',
+                icon: <Clock size={18} className="text-sky-400" />
+            });
         } else {
             addToWatchlist(movie);
+            showToast({
+                message: `${movie.title} added to your Watchlist`,
+                type: 'success',
+                icon: <Clock size={18} className="text-amber-400" />
+            });
         }
     };
 
@@ -916,12 +1008,12 @@ const MovieListItem = ({ movie, rank, userRating }) => {
                     className={`
                         w-10 h-10 rounded-full flex items-center justify-center border transition-all duration-300 group/watchlist relative
                         ${inWatchlist
-                            ? 'bg-green-500 text-black border-green-500 opacity-100'
-                            : 'bg-white/10 text-white border-white/10 hover:bg-white hover:text-black opacity-0 group-hover:opacity-100 translate-x-4 group-hover:translate-x-0'
+                            ? 'bg-sky-500 text-white border-sky-500 opacity-100'
+                            : 'bg-white/10 text-white border-white/10 hover:bg-sky-500 hover:text-white opacity-0 group-hover:opacity-100 translate-x-4 group-hover:translate-x-0'
                         }
                     `}
                 >
-                    {inWatchlist ? <Check size={18} strokeWidth={3} /> : <Plus size={18} strokeWidth={3} />}
+                    {inWatchlist ? <Clock size={18} strokeWidth={3} /> : <Clock size={18} strokeWidth={3} />}
 
                     {/* Stylish Tooltip for Watchlist */}
                     <div className="absolute bottom-full right-0 mb-2 w-max bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-xl p-3 opacity-0 group-hover/watchlist:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">

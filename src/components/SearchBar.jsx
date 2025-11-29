@@ -129,16 +129,23 @@ export const SearchBar = () => {
                                     </p>
                                 </div>
 
-                                {/* Only show Add button for movies */}
-                                {item.type !== 'person' && (
-                                    <button
-                                        onClick={(e) => handleAddToWatchlist(e, item)}
-                                        className="p-2 bg-sky-500/10 text-sky-400 rounded-full opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0 hover:bg-sky-500/20"
-                                        title="Add to Watchlist"
-                                    >
-                                        <Plus size={20} />
-                                    </button>
-                                )}
+                                {/* Add Button (Watchlist for movies, Rankings for people) */}
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (item.type === 'person') {
+                                            addMovie('actors', item);
+                                            setQuery('');
+                                            setIsOpen(false);
+                                        } else {
+                                            handleAddToWatchlist(e, item);
+                                        }
+                                    }}
+                                    className="p-2 bg-sky-500/10 text-sky-400 rounded-full opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0 hover:bg-sky-500/20"
+                                    title={item.type === 'person' ? "Add to Actor Rankings" : "Add to Watchlist"}
+                                >
+                                    <Plus size={20} />
+                                </button>
                             </div>
                         ))}
                     </div>

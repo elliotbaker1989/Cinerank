@@ -136,3 +136,24 @@ body {
 .animate-bounce-out {
   animation: bounce-out-right 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
+
+@keyframes float-up-fade {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.8);
+  }
+
+  20% {
+    opacity: 1;
+    transform: translateY(0) scale(1.2);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-20px) scale(1);
+  }
+}
+
+.animate-float-up {
+  animation: float-up-fade 1s ease-out forwards;
+}

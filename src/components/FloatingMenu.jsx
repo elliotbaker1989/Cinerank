@@ -1,22 +1,34 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Trophy, List, Settings, LogOut, User, Search, Users, Star, Activity } from 'lucide-react';
+import { Home, Trophy, Watch, Settings, LogOut, User, Search, Users, Star, Activity } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useMovieContext } from '../context/MovieContext';
 import { getUserTitle } from '../utils/userTitles';
 
 const FloatingMenu = ({ onSignInClick }) => {
     const { user, realUser, logout, toggleViewAsSignedOut } = useAuth();
-    const { ratings, lists } = useMovieContext();
+    const { ratings, lists, watched } = useMovieContext();
     const location = useLocation();
     const navigate = useNavigate();
     const [showProfileMenu, setShowProfileMenu] = useState(false);
+    const [showAnimation, setShowAnimation] = useState(false);
+    const [prevTotal, setPrevTotal] = useState(0);
     const dropdownRef = useRef(null);
 
     // Calculate user title info based on TOTAL CONTRIBUTIONS
     const totalContributions = (Object.keys(ratings).length) +
         (lists?.['all-time']?.length || 0) +
-        (lists?.watchlist?.length || 0);
+        (lists?.watchlist?.length || 0) +
+        (Object.keys(watched).length);
+
+    useEffect(() => {
+        if (totalContributions > prevTotal && prevTotal !== 0) {
+            setShowAnimation(true);
+            const timer = setTimeout(() => setShowAnimation(false), 1000);
+            return () => clearTimeout(timer);
+        }
+        setPrevTotal(totalContributions);
+    }, [totalContributions]);
 
     const titleInfo = getUserTitle(totalContributions);
 
@@ -91,7 +103,7 @@ const FloatingMenu = ({ onSignInClick }) => {
                             }
                         `}
                     >
-                        <List size={18} />
+                        <Watch size={18} />
                         <span>Watchlist</span>
                     </Link>
 
@@ -126,7 +138,14 @@ const FloatingMenu = ({ onSignInClick }) => {
                                 </p>
                                 <div className="flex items-center justify-end gap-1.5 mt-1 text-slate-400">
                                     <Activity size={16} className="text-sky-500" />
-                                    <span className="text-xs font-bold">{totalContributions}</span>
+                                    <span className="text-xs font-bold relative">
+                                        {totalContributions}
+                                        {showAnimation && (
+                                            <span className="absolute -top-6 -right-2 text-green-400 font-black text-sm animate-float-up pointer-events-none">
+                                                +1
+                                            </span>
+                                        )}
+                                    </span>
                                 </div>
                             </div>
 

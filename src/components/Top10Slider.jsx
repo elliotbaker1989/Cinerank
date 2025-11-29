@@ -12,11 +12,16 @@ export const Top10Slider = ({ availability, activeProviderFilters }) => {
     useEffect(() => {
         const fetchTrending = async () => {
             try {
-                const trending = await getTrendingMovies(selectedRegion);
-                setMovies(trending);
+                // 1. Fetch basic list immediately (FAST)
+                const basicTrending = await getTrendingMovies(selectedRegion, false);
+                setMovies(basicTrending);
+                setLoading(false); // Show content immediately
+
+                // 2. Fetch enriched data (providers) in background (SLOW)
+                const enrichedTrending = await getTrendingMovies(selectedRegion, true);
+                setMovies(enrichedTrending);
             } catch (error) {
                 console.error("Failed to fetch top 10:", error);
-            } finally {
                 setLoading(false);
             }
         };

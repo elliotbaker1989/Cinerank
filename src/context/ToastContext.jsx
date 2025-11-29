@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext } from 'react';
-import { Check, Info, Heart, AlertCircle } from 'lucide-react';
+import { Check, Info, Heart, AlertCircle, Trophy, ThumbsUp, ThumbsDown } from 'lucide-react';
 
 const ToastContext = createContext();
 
@@ -9,19 +9,19 @@ export const ToastProvider = ({ children }) => {
     const [toasts, setToasts] = useState([]);
 
     const showToast = (arg1, arg2) => {
-        let message, type, action, duration;
+        let message, type, action, duration, icon;
 
         if (typeof arg1 === 'string') {
             message = arg1;
             type = arg2 || 'info';
             duration = 3000;
         } else {
-            ({ message, type = 'info', action, duration = 5000 } = arg1);
+            ({ message, type = 'info', action, duration = 5000, icon } = arg1);
         }
 
         const id = crypto.randomUUID();
         setToasts(prev => {
-            const newToasts = [...prev, { id, message, type, action, duration }];
+            const newToasts = [...prev, { id, message, type, action, duration, icon }];
             return newToasts.slice(-4); // Keep only the last 4
         });
 
@@ -53,7 +53,7 @@ const ToastContainer = ({ toasts, onDismiss }) => {
     );
 };
 
-const Toast = ({ id, message, type, action, onDismiss }) => {
+const Toast = ({ id, message, type, action, icon, onDismiss }) => {
     const getToastStyles = () => {
         switch (type) {
             case 'success':
@@ -70,9 +70,32 @@ const Toast = ({ id, message, type, action, onDismiss }) => {
                 };
             case 'love':
                 return {
-                    icon: <Heart size={18} className="text-purple-400" fill="currentColor" />,
+                    icon: (
+                        <div className="flex items-center -space-x-2">
+                            <ThumbsUp size={18} className="text-purple-500 transform -rotate-12" fill="currentColor" />
+                            <ThumbsUp size={18} className="text-purple-500 transform rotate-6" fill="currentColor" />
+                        </div>
+                    ),
                     border: 'border-purple-500/30',
                     bg: 'bg-purple-500/10'
+                };
+            case 'like':
+                return {
+                    icon: <ThumbsUp size={18} className="text-green-400" fill="currentColor" />,
+                    border: 'border-green-500/30',
+                    bg: 'bg-green-500/10'
+                };
+            case 'dislike':
+                return {
+                    icon: <ThumbsDown size={18} className="text-red-400" fill="currentColor" />,
+                    border: 'border-red-500/30',
+                    bg: 'bg-red-500/10'
+                };
+            case 'rank':
+                return {
+                    icon: <Trophy size={18} className="text-yellow-500" fill="currentColor" />,
+                    border: 'border-yellow-500/30',
+                    bg: 'bg-yellow-500/10'
                 };
             default:
                 return {
@@ -87,7 +110,7 @@ const Toast = ({ id, message, type, action, onDismiss }) => {
 
     return (
         <div className={`pointer-events-auto glass-panel px-6 py-4 rounded-full flex items-center gap-4 min-w-[300px] animate-bounce-in border ${styles.border} ${styles.bg}`}>
-            {styles.icon}
+            {icon || styles.icon}
             <p className="flex-1 text-white text-sm font-medium">{message}</p>
             {action && (
                 <button

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ThumbsUp, ThumbsDown } from 'lucide-react';
+import { ThumbsUp, ThumbsDown, Info } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 
 const RatingControls = ({ movieId, userRating, onRate, size = 20, className = '' }) => {
@@ -13,24 +13,35 @@ const RatingControls = ({ movieId, userRating, onRate, size = 20, className = ''
         setAnimatingBtn(rating);
         setTimeout(() => setAnimatingBtn(null), 300);
 
+        // Check if we are removing the rating (toggling off)
+        const isRemoving = userRating === rating;
+
+        if (isRemoving) {
+            onRate(movieId, null);
+            showToast({
+                message: 'Removed movie rating',
+                type: 'info',
+                icon: <Info size={18} className="text-sky-400" />
+            });
+            return;
+        }
+
         onRate(movieId, rating);
 
-        // Show toast
-        if (userRating !== rating) {
-            const messages = {
-                'double_up': 'You loved this movie!',
-                'up': 'You liked this movie',
-                'down': 'You disliked this movie'
-            };
+        // Show toast for new rating
+        const messages = {
+            'double_up': 'You loved this movie!',
+            'up': 'You liked this movie',
+            'down': 'You disliked this movie'
+        };
 
-            const types = {
-                'double_up': 'love',
-                'up': 'success',
-                'down': 'error'
-            };
+        const types = {
+            'double_up': 'love',
+            'up': 'like',
+            'down': 'dislike'
+        };
 
-            showToast(messages[rating], types[rating]);
-        }
+        showToast(messages[rating], types[rating]);
     };
 
     return (
@@ -40,7 +51,7 @@ const RatingControls = ({ movieId, userRating, onRate, size = 20, className = ''
                 onClick={(e) => handleRate(e, 'double_up')}
                 className={`
                     group relative p-2 rounded-full transition-all duration-300
-                    ${userRating === 'double_up' ? 'text-green-400 bg-white/10' : 'text-slate-400 hover:text-green-400 hover:bg-white/5'}
+                    ${userRating === 'double_up' ? 'text-purple-500 bg-white/10' : 'text-slate-400 hover:text-purple-500 hover:bg-white/5'}
                     ${animatingBtn === 'double_up' ? 'scale-125' : ''}
                 `}
                 title="Love it!"

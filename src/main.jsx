@@ -8,14 +8,18 @@ import { AuthProvider } from './context/AuthContext'
 
 import { BrowserRouter } from 'react-router-dom'
 
+import AuthErrorBoundary from './components/AuthErrorBoundary'
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
       <ToastProvider>
         <AuthProvider>
-          <MovieProvider>
-            <App />
-          </MovieProvider>
+          <AuthErrorBoundary>
+            <MovieProvider>
+              <App />
+            </MovieProvider>
+          </AuthErrorBoundary>
         </AuthProvider>
       </ToastProvider>
     </BrowserRouter>

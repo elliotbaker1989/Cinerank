@@ -13,14 +13,14 @@ import { GENRE_ID_MAP } from '../utils/constants';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import {
     User, Mail, Globe, Monitor, LogOut, Trash2,
-    ChevronDown, Check, Shield, Camera, Edit2, Search, X, Upload, Activity
+    ChevronDown, Check, Shield, Camera, Edit2, Search, X, Upload, Activity, Eye
 } from 'lucide-react';
 import { getUserTitle } from '../utils/userTitles';
 
 export const Settings = () => {
     const { user, logout, deleteAccount, selectedRegion, setSelectedRegion, selectedProviders, setSelectedProviders } = useAuth();
-    const { ratings, lists, setActiveListId } = useMovieContext();
-    const totalContributions = Object.keys(ratings).length + (lists['all-time']?.length || 0) + (lists.watchlist?.length || 0);
+    const { ratings, lists, setActiveListId, watched } = useMovieContext();
+    const totalContributions = Object.keys(ratings).length + (lists['all-time']?.length || 0) + (lists.watchlist?.length || 0) + Object.keys(watched).length;
     const titleInfo = getUserTitle(totalContributions);
     const { showToast } = useToast();
     const navigate = useNavigate();
@@ -326,12 +326,12 @@ export const Settings = () => {
                         <div>
                             <p className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-1">Total Contributions</p>
                             <p className="text-4xl font-black text-white">
-                                {Object.keys(ratings).length + (lists['all-time']?.length || 0) + (lists.watchlist?.length || 0)}
+                                {Object.keys(ratings).length + (lists['all-time']?.length || 0) + (lists.watchlist?.length || 0) + Object.keys(watched).length}
                             </p>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div
                             onClick={() => navigate('/ratings')}
                             className="bg-white/5 rounded-2xl p-4 border border-white/10 cursor-pointer hover:bg-white/10 hover:border-white/20 transition-all group"
@@ -351,6 +351,12 @@ export const Settings = () => {
                         >
                             <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1 group-hover:text-white transition-colors">Watchlist</p>
                             <p className="text-3xl font-black text-white">{lists.watchlist?.length || 0}</p>
+                        </div>
+                        <div
+                            className="bg-white/5 rounded-2xl p-4 border border-white/10 cursor-pointer hover:bg-white/10 hover:border-white/20 transition-all group"
+                        >
+                            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1 group-hover:text-white transition-colors">Total Seen</p>
+                            <p className="text-3xl font-black text-white">{Object.keys(watched).length}</p>
                         </div>
                     </div>
 

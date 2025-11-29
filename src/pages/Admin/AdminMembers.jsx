@@ -124,7 +124,9 @@ const AdminMembers = () => {
                         <tbody className="divide-y divide-white/5">
                             {currentMembers.map((member) => {
                                 const ratingsCount = member.ratings ? Object.keys(member.ratings).length : 0;
-                                const titleInfo = getUserTitle(ratingsCount);
+                                const listsCount = (member.lists?.['all-time']?.length || 0) + (member.lists?.watchlist?.length || 0);
+                                const totalContributions = ratingsCount + listsCount;
+                                const titleInfo = getUserTitle(totalContributions);
 
                                 return (
                                     <tr

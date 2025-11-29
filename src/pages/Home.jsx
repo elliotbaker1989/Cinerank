@@ -219,7 +219,8 @@ export const Home = ({ onSignInClick }) => {
                         watch_region: selectedRegion,
                         primary_release_date_gte: gte,
                         primary_release_date_lte: lte,
-                        vote_count_gte: voteCount
+                        vote_count_gte: voteCount,
+                        fetchExtras: false
                     }))),
                     new Promise(resolve => setTimeout(resolve, 800))
                 ]);

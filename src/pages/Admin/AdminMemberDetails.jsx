@@ -85,7 +85,7 @@ const AdminMemberDetails = () => {
     };
 
     const totalContributions = ratings.length + rankings.length + watchlist.length;
-    const titleInfo = getUserTitle(ratings.length); // Or totalContributions if that's the new logic
+    const titleInfo = getUserTitle(totalContributions);
 
     return (
         <div className="space-y-8 animate-fade-in">
@@ -191,8 +191,8 @@ const AdminMemberDetails = () => {
                                 <div>
                                     <div className="flex items-center gap-2 mb-1">
                                         <span className={`flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-lg ${item.rating === 'double_up' ? 'bg-purple-500/20 text-purple-400' :
-                                                item.rating === 'up' ? 'bg-green-500/20 text-green-400' :
-                                                    'bg-red-500/20 text-red-400'
+                                            item.rating === 'up' ? 'bg-green-500/20 text-green-400' :
+                                                'bg-red-500/20 text-red-400'
                                             }`}>
                                             {item.rating === 'double_up' && (
                                                 <div className="flex -space-x-1">

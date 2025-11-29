@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ThumbsUp, ThumbsDown, Activity, List, Clock, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { ThumbsUp, ThumbsDown, Activity, List, Clock, Eye, EyeOff, Loader2, Heart, Trophy } from 'lucide-react';
 import { useMovieContext } from '../context/MovieContext';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { generateMovieUrl } from '../utils/seoUtils';
+import { generateMovieUrl, generatePersonUrl } from '../utils/seoUtils';
+
+const IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
 
 const MyActivity = () => {
     const { user } = useAuth();
-    const { ratings, lists, watched } = useMovieContext();
+    const { ratings, lists, watched, ratingsMeta } = useMovieContext();
     const navigate = useNavigate();
 
     const [activeFilter, setActiveFilter] = useState('all'); // 'all', 'double_up', 'up', 'down', 'ranked', 'watchlist', 'seen'
@@ -23,127 +25,179 @@ const MyActivity = () => {
     const { stats, sortedMovies } = useMemo(() => {
         if (!user) return { stats: {}, sortedMovies: [] };
 
-        const movieMap = {};
+        try {
+            const safeLists = lists || {};
+            const safeRatings = ratings || {};
+            const safeRatingsMeta = ratingsMeta || {};
+            const safeWatched = watched || {};
 
-        const initMovie = (id, title, poster) => {
-            if (!movieMap[id]) {
-                movieMap[id] = {
-                    id, title, poster,
-                    count: 0,
-                    up: 0, doubleUp: 0, down: 0,
-                    ranked: 0, watchlist: 0, seen: 0
-                };
+            const movieMap = {};
+
+            const updateTimestamp = (item, newTimestamp) => {
+                if (!newTimestamp) return;
+                const current = item.lastInteraction ? new Date(item.lastInteraction).getTime() : 0;
+                const newTime = new Date(newTimestamp).getTime();
+                if (newTime > current) {
+                    item.lastInteraction = newTimestamp;
+                }
+            };
+
+            const initItem = (id, title, poster, isActor = false, timestamp = null) => {
+                if (!movieMap[id]) {
+                    movieMap[id] = {
+                        id,
+                        title: title || 'Unknown',
+                        poster,
+                        isActor,
+                        count: 0,
+                        up: 0, doubleUp: 0, down: 0,
+                        ranked: 0, watchlist: 0, seen: 0,
+                        lastInteraction: null
+                    };
+                }
+                if (timestamp) {
+                    updateTimestamp(movieMap[id], timestamp);
+                }
+            };
+
+            // Build a lookup map of details from all available lists
+            const detailsMap = {};
+            Object.values(safeLists).forEach(list => {
+                if (Array.isArray(list)) {
+                    list.forEach(item => {
+                        if (item && item.id) {
+                            detailsMap[item.id] = {
+                                title: item.title || item.name || 'Unknown',
+                                poster_path: item.poster_path || item.profile_path,
+                                isActor: !!item.name
+                            };
+                        }
+                    });
+                }
+            });
+
+            // 1. Process Lists
+
+            // Ranked Movies (All-time)
+            (safeLists['all-time'] || []).forEach(m => {
+                if (!m || !m.id) return;
+                initItem(m.id, m.title, m.poster_path, false, m.timestamp);
+                if (movieMap[m.id]) {
+                    movieMap[m.id].count++;
+                    movieMap[m.id].ranked++;
+                }
+            });
+
+            // Ranked Actors
+            if (Array.isArray(safeLists['actors'])) {
+                safeLists['actors'].forEach(a => {
+                    if (!a || !a.id) return;
+                    initItem(a.id, a.name, a.profile_path, true, a.timestamp);
+                    if (movieMap[a.id]) {
+                        movieMap[a.id].count++;
+                        movieMap[a.id].ranked++;
+                    }
+                });
             }
-        };
 
-        // Process Ratings
-        Object.entries(ratings).forEach(([movieId, rating]) => {
-            // We need movie details. Since ratings is just ID->Rating, we might need to look up details.
-            // However, lists usually have the details. If a movie is ONLY rated but not in any list, we might miss details.
-            // For this MVP, we'll try to find details from lists. If not found, we might have missing title/poster.
-            // Actually, MovieContext doesn't store movie details in 'ratings' state, just the value.
-            // But 'lists' has full movie objects.
-            // 'watched' has timestamps.
+            // Favorites (Actors) -> Map to Loved (Double Up)
+            (safeLists['favorites'] || []).forEach(a => {
+                if (!a || !a.id) return;
+                initItem(a.id, a.name, a.profile_path, true, a.timestamp);
+                if (movieMap[a.id]) {
+                    movieMap[a.id].count++;
+                    movieMap[a.id].doubleUp++; // Treat favorite as "Loved"
+                }
+            });
 
-            // Wait, the previous AdminContributions used a global collection which had details.
-            // Here we are using local state. 
-            // We need a way to get movie details for rated-only movies.
-            // Let's iterate through ALL lists to build a lookup map first.
-        });
+            // Watchlist
+            (safeLists['watchlist'] || []).forEach(m => {
+                if (!m || !m.id) return;
+                initItem(m.id, m.title, m.poster_path, false, m.timestamp);
+                if (movieMap[m.id]) {
+                    movieMap[m.id].count++;
+                    movieMap[m.id].watchlist++;
+                }
+            });
 
-        // Build a lookup map of movie details from all available lists
-        const movieDetailsMap = {};
-        Object.values(lists).flat().forEach(movie => {
-            movieDetailsMap[movie.id] = { title: movie.title, poster_path: movie.poster_path };
-        });
+            // 2. Process Ratings
+            Object.entries(safeRatings).forEach(([itemId, rating]) => {
+                if (!itemId) return;
+                const details = detailsMap[itemId] || { title: 'Unknown Title', poster_path: null };
+                const timestamp = safeRatingsMeta[itemId]?.timestamp;
+                initItem(itemId, details.title, details.poster_path, details.isActor, timestamp);
 
-        // We also need to handle the case where we don't have details.
-        // For now, let's process what we can.
+                if (movieMap[itemId]) {
+                    movieMap[itemId].count++;
 
-        // 1. Process Lists (Ranked & Watchlist)
-        // Ranked (All-time)
-        (lists['all-time'] || []).forEach(m => {
-            initMovie(m.id, m.title, m.poster_path);
-            movieMap[m.id].count++;
-            movieMap[m.id].ranked++;
-        });
+                    if (rating === 'up') movieMap[itemId].up++;
+                    else if (rating === 'double_up') movieMap[itemId].doubleUp++;
+                    else if (rating === 'down') movieMap[itemId].down++;
+                }
+            });
 
-        // Watchlist
-        (lists['watchlist'] || []).forEach(m => {
-            initMovie(m.id, m.title, m.poster_path);
-            movieMap[m.id].count++;
-            movieMap[m.id].watchlist++;
-        });
+            // 3. Process Watched
+            Object.entries(safeWatched).forEach(([movieId, timestamp]) => {
+                if (!movieId) return;
+                const details = detailsMap[movieId] || { title: 'Unknown Title', poster_path: null };
+                initItem(movieId, details.title, details.poster_path, false, timestamp);
+                if (movieMap[movieId]) {
+                    movieMap[movieId].count++;
+                    movieMap[movieId].seen++;
+                }
+            });
 
-        // 2. Process Ratings
-        Object.entries(ratings).forEach(([movieId, rating]) => {
-            const details = movieDetailsMap[movieId] || { title: 'Unknown Title', poster_path: null };
-            initMovie(movieId, details.title, details.poster_path);
+            // Calculate Stats
+            let totalDoubleUp = 0;
+            let totalUp = 0;
+            let totalDown = 0;
+            let totalRanked = 0;
+            let totalWatchlist = 0;
+            let totalSeen = 0;
 
-            // Only increment count if not already counted (e.g. if it was in a list, we already init'd)
-            // But we want to count INTERACTIONS. Rating is an interaction.
-            movieMap[movieId].count++;
+            Object.values(movieMap).forEach(m => {
+                totalDoubleUp += m.doubleUp;
+                totalUp += m.up;
+                totalDown += m.down;
+                if (m.ranked > 0) totalRanked++;
+                if (m.watchlist > 0) totalWatchlist++;
+                if (m.seen > 0) totalSeen++;
+            });
 
-            if (rating === 'up') movieMap[movieId].up++;
-            else if (rating === 'double_up') movieMap[movieId].doubleUp++;
-            else if (rating === 'down') movieMap[movieId].down++;
-        });
+            const stats = {
+                doubleUp: totalDoubleUp,
+                up: totalUp,
+                down: totalDown,
+                ranked: totalRanked,
+                watchlist: totalWatchlist,
+                seen: totalSeen
+            };
 
-        // 3. Process Watched
-        Object.entries(watched).forEach(([movieId, timestamp]) => {
-            const details = movieDetailsMap[movieId] || { title: 'Unknown Title', poster_path: null };
-            initMovie(movieId, details.title, details.poster_path);
-            movieMap[movieId].count++;
-            movieMap[movieId].seen++;
-        });
+            // Filter and Sort
+            let sorted = Object.values(movieMap);
 
-        // Calculate Stats
-        let totalDoubleUp = 0;
-        let totalUp = 0;
-        let totalDown = 0;
-        let totalRanked = 0;
-        let totalWatchlist = 0;
-        let totalSeen = 0;
+            if (activeFilter === 'double_up') sorted = sorted.filter(m => m.doubleUp > 0);
+            else if (activeFilter === 'up') sorted = sorted.filter(m => m.up > 0);
+            else if (activeFilter === 'down') sorted = sorted.filter(m => m.down > 0);
+            else if (activeFilter === 'ranked') sorted = sorted.filter(m => m.ranked > 0);
+            else if (activeFilter === 'watchlist') sorted = sorted.filter(m => m.watchlist > 0);
+            else if (activeFilter === 'seen') sorted = sorted.filter(m => m.seen > 0);
 
-        Object.values(movieMap).forEach(m => {
-            totalDoubleUp += m.doubleUp;
-            totalUp += m.up;
-            totalDown += m.down;
-            // For ranked/watchlist/seen, we count the MOVIES, not just interactions? 
-            // AdminDashboard counted total items in collection.
-            // Here, m.ranked is 1 if ranked.
-            if (m.ranked > 0) totalRanked++;
-            if (m.watchlist > 0) totalWatchlist++;
-            if (m.seen > 0) totalSeen++;
-        });
+            // Sort by Last Interaction (Newest First)
+            sorted.sort((a, b) => {
+                const timeA = a.lastInteraction ? new Date(a.lastInteraction).getTime() : 0;
+                const timeB = b.lastInteraction ? new Date(b.lastInteraction).getTime() : 0;
+                return timeB - timeA;
+            });
 
-        const stats = {
-            doubleUp: totalDoubleUp,
-            up: totalUp,
-            down: totalDown,
-            ranked: totalRanked,
-            watchlist: totalWatchlist,
-            seen: totalSeen
-        };
+            return { stats, sortedMovies: sorted };
 
-        // Filter and Sort
-        let sorted = Object.values(movieMap);
+        } catch (error) {
+            console.error("Error calculating activity stats:", error);
+            return { stats: {}, sortedMovies: [] };
+        }
 
-        if (activeFilter === 'double_up') sorted = sorted.filter(m => m.doubleUp > 0);
-        else if (activeFilter === 'up') sorted = sorted.filter(m => m.up > 0);
-        else if (activeFilter === 'down') sorted = sorted.filter(m => m.down > 0);
-        else if (activeFilter === 'ranked') sorted = sorted.filter(m => m.ranked > 0);
-        else if (activeFilter === 'watchlist') sorted = sorted.filter(m => m.watchlist > 0);
-        else if (activeFilter === 'seen') sorted = sorted.filter(m => m.seen > 0);
-
-        // Sort by most recent interaction? We don't have timestamps for everything easily.
-        // Default to most interactions for now, or just alphabetical?
-        // Let's sort by interaction count then title.
-        sorted.sort((a, b) => b.count - a.count || a.title.localeCompare(b.title));
-
-        return { stats, sortedMovies: sorted };
-
-    }, [ratings, lists, watched, user, activeFilter]);
+    }, [ratings, lists, watched, ratingsMeta, user, activeFilter]);
 
     // Infinite Scroll
     useEffect(() => {
@@ -155,6 +209,12 @@ const MyActivity = () => {
         window.addEventListener('scroll', handleScroll);
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
+
+    const formatDate = (isoString) => {
+        if (!isoString) return '';
+        const date = new Date(isoString);
+        return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(date);
+    };
 
     if (!user) {
         return (
@@ -295,7 +355,7 @@ const MyActivity = () => {
                                 activeFilter === 'double_up' ? 'Loved Movies' :
                                     activeFilter === 'up' ? 'Liked Movies' :
                                         activeFilter === 'down' ? 'Disliked Movies' :
-                                            activeFilter === 'ranked' ? 'Ranked Movies' :
+                                            activeFilter === 'ranked' ? 'Ranked Activity' :
                                                 activeFilter === 'watchlist' ? 'Watchlist' : 'Seen Movies'}
                         </h3>
 
@@ -304,12 +364,12 @@ const MyActivity = () => {
                                 sortedMovies.slice(0, visibleCount).map((movie, index) => (
                                     <div
                                         key={movie.id}
-                                        onClick={() => navigate(generateMovieUrl(movie.id, movie.title))}
+                                        onClick={() => navigate(movie.isActor ? generatePersonUrl(movie.id, movie.title) : generateMovieUrl(movie.id, movie.title))}
                                         className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-4 flex items-center gap-6 group hover:bg-white/10 transition-colors w-full cursor-pointer"
                                     >
                                         {/* Poster */}
                                         <img
-                                            src={movie.poster}
+                                            src={movie.poster ? `${IMAGE_BASE_URL}${movie.poster}` : 'https://via.placeholder.com/500x750?text=No+Image'}
                                             alt={movie.title}
                                             className="w-12 h-18 rounded-md shadow-lg border border-white/10 shrink-0 object-cover"
                                         />
@@ -317,18 +377,30 @@ const MyActivity = () => {
                                         {/* Title & Stats */}
                                         <div className="flex-grow flex items-center justify-between min-w-0 gap-4">
                                             <div className="min-w-0">
-                                                <h3 className="text-lg font-bold text-white truncate group-hover:text-sky-400 transition-colors">{movie.title}</h3>
+                                                <div className="flex items-center gap-2">
+                                                    <h3 className="text-lg font-bold text-white truncate group-hover:text-sky-400 transition-colors">{movie.title}</h3>
+                                                    <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border ${movie.isActor ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' : 'bg-sky-500/20 text-sky-400 border-sky-500/30'}`}>
+                                                        {movie.isActor ? 'Actor' : 'Movie'}
+                                                    </span>
+                                                </div>
 
                                                 {/* Breakdown */}
                                                 <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                                                     {movie.doubleUp > 0 && (
-                                                        <div className="flex items-center gap-1 text-xs text-purple-400 font-medium" title="Double Thumbs Up">
-                                                            <div className="flex -space-x-0.5">
-                                                                <ThumbsUp size={10} className="rotate-[-15deg]" />
-                                                                <ThumbsUp size={10} className="rotate-[15deg]" />
+                                                        movie.isActor ? (
+                                                            <div className="flex items-center gap-1 text-xs text-red-500 font-medium" title="Liked">
+                                                                <Heart size={12} className="fill-current" />
+                                                                <span>Liked</span>
                                                             </div>
-                                                            <span>Loved</span>
-                                                        </div>
+                                                        ) : (
+                                                            <div className="flex items-center gap-1 text-xs text-purple-400 font-medium" title="Double Thumbs Up">
+                                                                <div className="flex -space-x-0.5">
+                                                                    <ThumbsUp size={10} className="rotate-[-15deg]" />
+                                                                    <ThumbsUp size={10} className="rotate-[15deg]" />
+                                                                </div>
+                                                                <span>Loved</span>
+                                                            </div>
+                                                        )
                                                     )}
                                                     {movie.up > 0 && (
                                                         <div className="flex items-center gap-1 text-xs text-green-400 font-medium" title="Thumbs Up">
@@ -343,10 +415,17 @@ const MyActivity = () => {
                                                         </div>
                                                     )}
                                                     {movie.ranked > 0 && (
-                                                        <div className="flex items-center gap-1 text-xs text-sky-400 font-medium" title="Ranked">
-                                                            <List size={12} />
-                                                            <span>Ranked</span>
-                                                        </div>
+                                                        movie.isActor ? (
+                                                            <div className="flex items-center gap-1 text-xs text-yellow-500 font-medium" title="Ranked">
+                                                                <Trophy size={12} className="fill-current" />
+                                                                <span>Ranked</span>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-center gap-1 text-xs text-sky-400 font-medium" title="Ranked">
+                                                                <List size={12} />
+                                                                <span>Ranked</span>
+                                                            </div>
+                                                        )
                                                     )}
                                                     {movie.watchlist > 0 && (
                                                         <div className="flex items-center gap-1 text-xs text-amber-400 font-medium" title="Watchlist">
@@ -361,6 +440,14 @@ const MyActivity = () => {
                                                         </div>
                                                     )}
                                                 </div>
+                                            </div>
+
+                                            {/* Date */}
+                                            <div className="text-right shrink-0">
+                                                <p className="text-xs text-slate-500 font-medium">Updated</p>
+                                                <p className="text-xs text-slate-400">
+                                                    {movie.lastInteraction ? formatDate(movie.lastInteraction) : 'No Date'}
+                                                </p>
                                             </div>
                                         </div>
                                     </div>

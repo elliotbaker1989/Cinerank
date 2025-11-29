@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { ThumbsUp, ThumbsDown, Activity, Calendar, Loader2, List, Clock } from 'lucide-react';
+import { ThumbsUp, ThumbsDown, Activity, Calendar, Loader2, List, Clock, Eye } from 'lucide-react';
 
 const AdminContributions = () => {
     const [loading, setLoading] = useState(true);
@@ -19,11 +19,12 @@ const AdminContributions = () => {
     const [sortedMovies, setSortedMovies] = useState([]);
     const [visibleCount, setVisibleCount] = useState(20);
 
-    const [activeFilter, setActiveFilter] = useState('all'); // 'all', 'double_up', 'up', 'down', 'ranked', 'watchlist'
+    const [activeFilter, setActiveFilter] = useState('all'); // 'all', 'double_up', 'up', 'down', 'ranked', 'watchlist', 'seen'
 
     const [allRatings, setAllRatings] = useState([]);
     const [allRankings, setAllRankings] = useState([]);
     const [allWatchlists, setAllWatchlists] = useState([]);
+    const [allWatched, setAllWatched] = useState([]);
 
     // 1. Real-time listener for ALL data
     useEffect(() => {
@@ -47,6 +48,12 @@ const AdminContributions = () => {
             setAllWatchlists(data);
         });
 
+        const unsubWatched = onSnapshot(query(collection(db, 'watched')), (snap) => {
+            const data = [];
+            snap.forEach(doc => data.push(doc.data()));
+            setAllWatched(data);
+        });
+
         // Simple loading state management - ideally wait for all 3
         // For now, we'll just set loading false after a short timeout or when data comes in
         // A better way is Promise.all but with onSnapshot it's different.
@@ -60,6 +67,7 @@ const AdminContributions = () => {
             unsubRatings();
             unsubRankings();
             unsubWatchlists();
+            unsubWatched();
             clearTimeout(timer);
         };
     }, []);
@@ -67,7 +75,7 @@ const AdminContributions = () => {
     // 2. Calculate Stats whenever data, filters, or active metric changes
     useEffect(() => {
         calculateStats();
-    }, [allRatings, allRankings, allWatchlists, timeframe, customDate, activeFilter]);
+    }, [allRatings, allRankings, allWatchlists, allWatched, timeframe, customDate, activeFilter]);
 
     const calculateStats = () => {
         // Date Logic
@@ -97,6 +105,7 @@ const AdminContributions = () => {
         const filteredRatings = allRatings.filter(r => r.rating !== null && filterByDate(r));
         const filteredRankings = allRankings.filter(filterByDate);
         const filteredWatchlists = allWatchlists.filter(filterByDate);
+        const filteredWatched = allWatched.filter(filterByDate);
 
         // Calculate Stats
         let up = 0;
@@ -111,7 +120,7 @@ const AdminContributions = () => {
                     id, title, poster,
                     count: 0, // Total interactions
                     up: 0, doubleUp: 0, down: 0,
-                    ranked: 0, watchlist: 0
+                    ranked: 0, watchlist: 0, seen: 0
                 };
             }
         };
@@ -143,13 +152,21 @@ const AdminContributions = () => {
             movieCounts[r.movieId].watchlist++;
         });
 
+        // Process Watched (Seen)
+        filteredWatched.forEach(r => {
+            initMovie(r.movieId, r.movieTitle, r.posterPath);
+            movieCounts[r.movieId].count++;
+            movieCounts[r.movieId].seen++;
+        });
+
         setStats({
             thumbsUp: up,
             doubleThumbsUp: doubleUp,
             thumbsDown: down,
             ranked: filteredRankings.length,
             watchlist: filteredWatchlists.length,
-            total: filteredRatings.length + filteredRankings.length + filteredWatchlists.length
+            seen: filteredWatched.length,
+            total: filteredRatings.length + filteredRankings.length + filteredWatchlists.length + filteredWatched.length
         });
 
         // Find Most Rated (Top 1)
@@ -164,6 +181,7 @@ const AdminContributions = () => {
         else if (activeFilter === 'down') sorted = sorted.filter(m => m.down > 0);
         else if (activeFilter === 'ranked') sorted = sorted.filter(m => m.ranked > 0);
         else if (activeFilter === 'watchlist') sorted = sorted.filter(m => m.watchlist > 0);
+        else if (activeFilter === 'seen') sorted = sorted.filter(m => m.seen > 0);
 
         // Sort
         sorted.sort((a, b) => {
@@ -172,6 +190,7 @@ const AdminContributions = () => {
             if (activeFilter === 'down') return b.down - a.down;
             if (activeFilter === 'ranked') return b.ranked - a.ranked;
             if (activeFilter === 'watchlist') return b.watchlist - a.watchlist;
+            if (activeFilter === 'seen') return b.seen - a.seen;
             return b.count - a.count; // Default 'all'
         });
 
@@ -228,7 +247,7 @@ const AdminContributions = () => {
             ) : (
                 <>
                     {/* Stats Grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
                         {/* Double Thumbs Up */}
                         <button
                             onClick={() => setActiveFilter(activeFilter === 'double_up' ? 'all' : 'double_up')}
@@ -316,6 +335,23 @@ const AdminContributions = () => {
                                 <div className="text-3xl font-black text-white">{stats.watchlist}</div>
                             </div>
                         </button>
+
+                        {/* Seen */}
+                        <button
+                            onClick={() => setActiveFilter(activeFilter === 'seen' ? 'all' : 'seen')}
+                            className={`bg-black/40 backdrop-blur-xl border rounded-2xl p-6 relative overflow-hidden group text-left transition-all focus:outline-none ${activeFilter === 'seen' ? 'border-green-500 shadow-lg shadow-green-500/20' : 'border-white/10 hover:border-white/20'}`}
+                        >
+                            <div className="absolute -right-6 -top-6 w-24 h-24 bg-green-500/20 rounded-full blur-2xl group-hover:bg-green-500/30 transition-colors" />
+                            <div className="relative z-10">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="p-2 bg-green-500/20 rounded-lg text-green-400">
+                                        <Eye size={18} />
+                                    </div>
+                                    <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Seen</span>
+                                </div>
+                                <div className="text-3xl font-black text-white">{stats.seen}</div>
+                            </div>
+                        </button>
                     </div>
 
                     {/* Top Rated Movies List */}
@@ -333,7 +369,8 @@ const AdminContributions = () => {
                                     activeFilter === 'double_up' ? 'Most Loved Movies' :
                                         activeFilter === 'up' ? 'Most Liked Movies' :
                                             activeFilter === 'down' ? 'Most Disliked Movies' :
-                                                activeFilter === 'ranked' ? 'Most Ranked Movies' : 'Most Watchlisted Movies';
+                                                activeFilter === 'ranked' ? 'Most Ranked Movies' :
+                                                    activeFilter === 'watchlist' ? 'Most Watchlisted Movies' : 'Most Seen Movies';
 
                                 return `${typeText} ${timeText}`;
                             })()}
@@ -404,6 +441,12 @@ const AdminContributions = () => {
                                                             <span>{movie.watchlist}</span>
                                                         </div>
                                                     )}
+                                                    {movie.seen > 0 && (
+                                                        <div className="flex items-center gap-1 text-xs text-green-400 font-medium" title="Seen">
+                                                            <Eye size={12} />
+                                                            <span>{movie.seen}</span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
 
@@ -415,7 +458,8 @@ const AdminContributions = () => {
                                                         activeFilter === 'double_up' ? movie.doubleUp :
                                                             activeFilter === 'up' ? movie.up :
                                                                 activeFilter === 'down' ? movie.down :
-                                                                    activeFilter === 'ranked' ? movie.ranked : movie.watchlist}
+                                                                    activeFilter === 'ranked' ? movie.ranked :
+                                                                        activeFilter === 'watchlist' ? movie.watchlist : movie.seen}
                                                 </span>
                                             </div>
                                         </div>

@@ -114,9 +114,13 @@ export const searchPeople = async (query) => {
     })) || [];
 };
 
-export const getTrendingMovies = async (region = 'US') => {
+export const getTrendingMovies = async (region = 'US', fetchExtras = true) => {
     const data = await fetchFromTMDB("/trending/movie/week");
     const movies = data?.results || [];
+
+    if (!fetchExtras) {
+        return movies.map(mapMovie);
+    }
 
     // Fetch providers and release dates for all movies in parallel
     const moviesWithExtras = await Promise.all(movies.map(async (movie) => {
@@ -242,7 +246,7 @@ export const getPersonMovieCredits = async (personId) => {
 
 export const getMoviesDetails = async (movieIds) => {
     // Limit concurrency to avoid rate limits
-    const BATCH_SIZE = 5;
+    const BATCH_SIZE = 10;
     const results = [];
 
     for (let i = 0; i < movieIds.length; i += BATCH_SIZE) {
@@ -346,7 +350,8 @@ export const discoverMovies = async ({
     primary_release_date_gte = '',
     primary_release_date_lte = '',
     vote_count_gte = 100, // Basic filter to avoid junk
-    with_people = ''
+    with_people = '',
+    fetchExtras = false
 }) => {
     const params = {
         page,
@@ -378,6 +383,10 @@ export const discoverMovies = async ({
 
     const data = await fetchFromTMDB("/discover/movie", params);
     const movies = data?.results || [];
+
+    if (!fetchExtras) {
+        return movies.map(mapMovie);
+    }
 
     // Fetch extras (providers, release dates) in parallel for the grid
     const moviesWithExtras = await Promise.all(movies.map(async (movie) => {
