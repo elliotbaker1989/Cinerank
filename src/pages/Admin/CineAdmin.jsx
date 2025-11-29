@@ -6,6 +6,7 @@ import AdminMembers from './AdminMembers';
 import AdminMemberDetails from './AdminMemberDetails';
 import AdminContributions from './AdminContributions';
 import AdminSettings from './AdminSettings';
+import SEO from '../../components/SEO';
 
 const CineAdmin = () => {
     const { user, loading } = useAuth();
@@ -20,6 +21,7 @@ const CineAdmin = () => {
 
     return (
         <div className="min-h-screen">
+            <SEO title="CineRank Admin" />
             {/* Admin Menu replaces the standard FloatingMenu */}
             <AdminMenu />
 

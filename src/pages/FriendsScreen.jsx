@@ -1,9 +1,11 @@
 import React from 'react';
 import { Users } from 'lucide-react';
+import SEO from '../components/SEO';
 
 const FriendsScreen = () => {
     return (
         <div className="animate-in fade-in zoom-in duration-500">
+            <SEO title="Friends - CineRank" />
             <h1 className="text-3xl font-bold text-white mb-8 pl-2 border-l-4 border-sky-500">Friends</h1>
             <div className="p-8 min-h-[60vh] flex flex-col items-center justify-center text-center">
                 <div className="w-24 h-24 bg-slate-800/50 rounded-full flex items-center justify-center mb-6 ring-4 ring-slate-800/30">

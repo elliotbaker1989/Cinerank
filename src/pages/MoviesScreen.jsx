@@ -3,6 +3,7 @@ import { useMovieContext } from '../context/MovieContext';
 import { MovieList } from '../components/MovieList';
 import { SearchBar } from '../components/SearchBar';
 import { Film, Zap, Smile, Heart, Rocket, Clapperboard } from 'lucide-react';
+import SEO from '../components/SEO';
 
 const GENRES = [
     { id: 'all-time', label: 'All-Time', icon: Film },
@@ -17,6 +18,7 @@ const MoviesScreen = () => {
 
     return (
         <div className="p-4 md:p-8 max-w-5xl mx-auto animate-in fade-in duration-500">
+            <SEO title="Movies - CineRank" />
             <header className="mb-8 flex flex-col md:flex-row justify-between items-center gap-6">
                 <div className="text-center md:text-left">
                     <h1 className="text-4xl md:text-5xl font-black bg-clip-text text-transparent bg-gradient-to-r from-sky-400 via-blue-500 to-purple-600 tracking-tighter drop-shadow-lg">

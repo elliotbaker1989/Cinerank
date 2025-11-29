@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react';
-import { Star, Film, Tv, Calendar, DollarSign, Users, Video, Award, PieChart } from 'lucide-react';
+import { Star, Film, Tv, Calendar, DollarSign, Users, Video, Award, PieChart, Heart } from 'lucide-react';
 import { IMAGE_BASE_URL } from '../services/api';
 import { getMovieStats, generateActorAwards } from '../utils/mockData';
 import { useNavigate } from 'react-router-dom';
 import { formatMoney } from '../utils/formatUtils';
 import { generatePersonUrl } from '../utils/seoUtils';
 import { getBillingCategory } from '../utils/billingUtils';
+import { useSettings } from '../context/SettingsContext';
 
 const GENRE_COLORS = {
     28: '#ef4444', // Action - Red
@@ -39,6 +40,7 @@ const GENRE_NAMES = {
 export const StatsCard = ({ movieCredits, tvCredits, person, collaborators }) => {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('ALL');
+    const { likesSource } = useSettings();
 
     const stats = useMemo(() => {
         if (!movieCredits || !tvCredits) return null;
@@ -85,7 +87,22 @@ export const StatsCard = ({ movieCredits, tvCredits, person, collaborators }) =>
             ? ratedMovies.reduce((prev, current) => (prev.vote_average > current.vote_average) ? prev : current)
             : null;
 
-        // 5. Years Active
+        // 5. Most Loved Movie (Highest Vote Count or Cinerank Likes)
+        const mostLoved = filteredMovies.length > 0
+            ? filteredMovies.reduce((prev, current) => {
+                if (likesSource === 'TMDB') {
+                    return (prev.vote_count || 0) > (current.vote_count || 0) ? prev : current;
+                } else {
+                    // Placeholder for Cinerank data - currently defaulting to 0/null as data doesn't exist yet
+                    // In the future, replace 'cinerank_likes' with the actual field name
+                    const prevLikes = prev.cinerank_likes || 0;
+                    const currentLikes = current.cinerank_likes || 0;
+                    return prevLikes > currentLikes ? prev : current;
+                }
+            })
+            : null;
+
+        // 6. Years Active
         const allDates = filteredMovies.map(m => m.release_date).filter(Boolean).map(d => new Date(d).getFullYear());
 
         const startYear = allDates.length > 0 ? Math.min(...allDates) : 'N/A';
@@ -212,9 +229,11 @@ export const StatsCard = ({ movieCredits, tvCredits, person, collaborators }) =>
             mostFavouredRole,
             genres: sortedGenres,
             topGenre,
-            billingCounts
+            billingCounts,
+            mostLoved,
+            likesSource // Pass this through to use in rendering
         };
-    }, [movieCredits, tvCredits, collaborators, person, activeTab]);
+    }, [movieCredits, tvCredits, collaborators, person, activeTab, likesSource]);
 
     if (!stats) return null;
 
@@ -335,15 +354,49 @@ export const StatsCard = ({ movieCredits, tvCredits, person, collaborators }) =>
                     </div>
 
                     <div className="flex items-center gap-4">
-                        <div className="p-3 bg-pink-500/10 rounded-xl text-pink-400">
+                        <div className="w-12 h-12 rounded-xl bg-pink-500/10 flex items-center justify-center text-pink-400">
                             <Users size={24} />
                         </div>
                         <div>
-                            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Community</p>
-                            <p className="text-xl font-black text-white">{stats.cinerankAdds}</p>
+                            <p className="text-xs text-slate-400 font-bold tracking-wider mb-0.5">COMMUNITY</p>
+                            <p className="text-2xl font-bold text-white">{stats.cinerankAdds}</p>
                             <p className="text-xs text-slate-500">Cinerank Adds</p>
                         </div>
                     </div>
+
+                    {/* Most Loved Film Card */}
+                    {stats.mostLoved && (
+                        <div className="flex items-center gap-4 mt-2">
+                            <div className="w-12 h-16 shrink-0 rounded-lg overflow-hidden border border-white/10 relative group">
+                                {stats.mostLoved.poster_path ? (
+                                    <img
+                                        src={`${IMAGE_BASE_URL}${stats.mostLoved.poster_path}`}
+                                        alt={stats.mostLoved.title}
+                                        className="w-full h-full object-cover"
+                                    />
+                                ) : (
+                                    <div className="w-full h-full bg-slate-800 flex items-center justify-center">
+                                        <Film size={16} className="text-slate-600" />
+                                    </div>
+                                )}
+                            </div>
+                            <div>
+                                <p className="text-xs text-slate-400 font-bold tracking-wider mb-0.5">MOST LOVED</p>
+                                <p className="text-sm font-bold text-white line-clamp-1" title={stats.mostLoved.title}>
+                                    {stats.mostLoved.title}
+                                </p>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                    <Heart size={12} className="text-pink-500 fill-pink-500" />
+                                    <p className="text-xs text-slate-300">
+                                        {stats.likesSource === 'TMDB'
+                                            ? stats.mostLoved.vote_count?.toLocaleString()
+                                            : (stats.mostLoved.cinerank_likes || 0).toLocaleString()
+                                        }
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Column 2: Career Output (Moved to Middle) */}

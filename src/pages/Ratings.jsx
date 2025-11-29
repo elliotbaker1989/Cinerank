@@ -3,6 +3,7 @@ import { useMovieContext } from '../context/MovieContext';
 import { MovieList } from '../components/MovieList';
 import { GENRES } from '../utils/constants';
 import ErrorBoundary from '../components/ErrorBoundary';
+import SEO from '../components/SEO';
 
 export const Ratings = () => {
     const { activeListId, setActiveListId } = useMovieContext();
@@ -12,6 +13,7 @@ export const Ratings = () => {
 
         <ErrorBoundary>
             <main className="space-y-8 animate-fade-in">
+                <SEO title="Your Rankings - CineRank" />
                 <h1 className="text-3xl font-bold text-white mb-8 pl-2 border-l-4 border-sky-500">Your Rankings</h1>
 
                 {/* Genre Tabs */}

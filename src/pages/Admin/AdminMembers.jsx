@@ -4,6 +4,7 @@ import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { Search, ChevronLeft, ChevronRight, Activity } from 'lucide-react';
 import { getUserTitle } from '../../utils/userTitles';
+import SEO from '../../components/SEO';
 
 const AdminMembers = () => {
     const [members, setMembers] = useState([]);
@@ -89,6 +90,7 @@ const AdminMembers = () => {
 
     return (
         <div className="space-y-6">
+            <SEO title="Members - CineRank Admin" />
             {/* Header Stats */}
             <div className="flex flex-col md:flex-row justify-between items-end gap-4">
                 <div>

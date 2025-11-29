@@ -9,6 +9,10 @@ const SEO = ({ title, description, image, url }) => {
     const metaImage = image || '/og-image.jpg'; // Assuming you have a default OG image or will add one
     const metaUrl = url || window.location.href;
 
+    React.useEffect(() => {
+        document.title = fullTitle;
+    }, [fullTitle]);
+
     return (
         <Helmet>
             {/* Standard Metadata */}

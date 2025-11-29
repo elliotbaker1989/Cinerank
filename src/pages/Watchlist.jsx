@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { Trash2, ThumbsUp, ThumbsDown, List } from 'lucide-react';
 import RatingControls from '../components/RatingControls';
 import { GENRES } from '../utils/constants';
+import SEO from '../components/SEO';
 
 export const Watchlist = () => {
     const { lists, removeMovie, addMovie, rateMovie, getMovieRating } = useMovieContext();
@@ -114,6 +115,7 @@ export const Watchlist = () => {
 
     return (
         <div className="space-y-12 pb-24">
+            <SEO title="My Watchlist - CineRank" />
             <section>
                 <h1 className="text-3xl font-bold text-white mb-8 pl-2 border-l-4 border-sky-500 flex items-center gap-3">
                     Watchlist

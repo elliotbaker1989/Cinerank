@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { ThumbsUp, ThumbsDown, Activity, Calendar, Loader2, List, Clock, Eye } from 'lucide-react';
+import SEO from '../../components/SEO';
 
 const AdminContributions = () => {
     const [loading, setLoading] = useState(true);
@@ -216,6 +217,7 @@ const AdminContributions = () => {
 
     return (
         <div className="space-y-8 animate-fade-in">
+            <SEO title="Contributions - CineRank Admin" />
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                 <div>

@@ -42,7 +42,12 @@ export const MovieDetails = () => {
     }, [id, selectedRegion]);
 
     if (loading) {
-        return <div className="text-white text-center mt-20">Loading...</div>;
+        return (
+            <div className="text-white text-center mt-20">
+                <SEO title="Loading... - CineRank" />
+                Loading...
+            </div>
+        );
     }
 
     if (!movie) {

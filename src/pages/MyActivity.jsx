@@ -4,6 +4,7 @@ import { useMovieContext } from '../context/MovieContext';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { generateMovieUrl, generatePersonUrl } from '../utils/seoUtils';
+import SEO from '../components/SEO';
 
 const IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
 
@@ -386,59 +387,71 @@ const MyActivity = () => {
 
                                                 {/* Breakdown */}
                                                 <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                                                    {movie.doubleUp > 0 && (
-                                                        movie.isActor ? (
-                                                            <div className="flex items-center gap-1 text-xs text-red-500 font-medium" title="Liked">
-                                                                <Heart size={12} className="fill-current" />
+                                                    {
+                                                        movie.doubleUp > 0 && (
+                                                            movie.isActor ? (
+                                                                <div className="flex items-center gap-1 text-xs text-red-500 font-medium" title="Liked">
+                                                                    <Heart size={12} className="fill-current" />
+                                                                    <span>Liked</span>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex items-center gap-1 text-xs text-purple-400 font-medium" title="Double Thumbs Up">
+                                                                    <div className="flex -space-x-0.5">
+                                                                        <ThumbsUp size={10} className="rotate-[-15deg]" />
+                                                                        <ThumbsUp size={10} className="rotate-[15deg]" />
+                                                                    </div>
+                                                                    <span>Loved</span>
+                                                                </div>
+                                                            )
+                                                        )
+                                                    }
+                                                    {
+                                                        movie.up > 0 && (
+                                                            <div className="flex items-center gap-1 text-xs text-green-400 font-medium" title="Thumbs Up">
+                                                                <ThumbsUp size={12} />
                                                                 <span>Liked</span>
                                                             </div>
-                                                        ) : (
-                                                            <div className="flex items-center gap-1 text-xs text-purple-400 font-medium" title="Double Thumbs Up">
-                                                                <div className="flex -space-x-0.5">
-                                                                    <ThumbsUp size={10} className="rotate-[-15deg]" />
-                                                                    <ThumbsUp size={10} className="rotate-[15deg]" />
+                                                        )
+                                                    }
+                                                    {
+                                                        movie.down > 0 && (
+                                                            <div className="flex items-center gap-1 text-xs text-red-400 font-medium" title="Thumbs Down">
+                                                                <ThumbsDown size={12} />
+                                                                <span>Disliked</span>
+                                                            </div>
+                                                        )
+                                                    }
+                                                    {
+                                                        movie.ranked > 0 && (
+                                                            movie.isActor ? (
+                                                                <div className="flex items-center gap-1 text-xs text-yellow-500 font-medium" title="Ranked">
+                                                                    <Trophy size={12} className="fill-current" />
+                                                                    <span>Ranked</span>
                                                                 </div>
-                                                                <span>Loved</span>
+                                                            ) : (
+                                                                <div className="flex items-center gap-1 text-xs text-sky-400 font-medium" title="Ranked">
+                                                                    <List size={12} />
+                                                                    <span>Ranked</span>
+                                                                </div>
+                                                            )
+                                                        )
+                                                    }
+                                                    {
+                                                        movie.watchlist > 0 && (
+                                                            <div className="flex items-center gap-1 text-xs text-amber-400 font-medium" title="Watchlist">
+                                                                <Clock size={12} />
+                                                                <span>Watchlist</span>
                                                             </div>
                                                         )
-                                                    )}
-                                                    {movie.up > 0 && (
-                                                        <div className="flex items-center gap-1 text-xs text-green-400 font-medium" title="Thumbs Up">
-                                                            <ThumbsUp size={12} />
-                                                            <span>Liked</span>
-                                                        </div>
-                                                    )}
-                                                    {movie.down > 0 && (
-                                                        <div className="flex items-center gap-1 text-xs text-red-400 font-medium" title="Thumbs Down">
-                                                            <ThumbsDown size={12} />
-                                                            <span>Disliked</span>
-                                                        </div>
-                                                    )}
-                                                    {movie.ranked > 0 && (
-                                                        movie.isActor ? (
-                                                            <div className="flex items-center gap-1 text-xs text-yellow-500 font-medium" title="Ranked">
-                                                                <Trophy size={12} className="fill-current" />
-                                                                <span>Ranked</span>
-                                                            </div>
-                                                        ) : (
-                                                            <div className="flex items-center gap-1 text-xs text-sky-400 font-medium" title="Ranked">
-                                                                <List size={12} />
-                                                                <span>Ranked</span>
+                                                    }
+                                                    {
+                                                        movie.seen > 0 && (
+                                                            <div className="flex items-center gap-1 text-xs text-emerald-400 font-medium" title="Seen">
+                                                                <Eye size={12} />
+                                                                <span>Seen</span>
                                                             </div>
                                                         )
-                                                    )}
-                                                    {movie.watchlist > 0 && (
-                                                        <div className="flex items-center gap-1 text-xs text-amber-400 font-medium" title="Watchlist">
-                                                            <Clock size={12} />
-                                                            <span>Watchlist</span>
-                                                        </div>
-                                                    )}
-                                                    {movie.seen > 0 && (
-                                                        <div className="flex items-center gap-1 text-xs text-emerald-400 font-medium" title="Seen">
-                                                            <Eye size={12} />
-                                                            <span>Seen</span>
-                                                        </div>
-                                                    )}
+                                                    }
                                                 </div>
                                             </div>
 
@@ -463,17 +476,19 @@ const MyActivity = () => {
                                     </p>
                                 </div>
                             )}
-                        </div>
+                        </div >
 
-                        {visibleCount < sortedMovies.length && (
-                            <div className="text-center py-8 text-slate-500 text-sm animate-pulse">
-                                Loading more...
-                            </div>
-                        )}
-                    </div>
+                        {
+                            visibleCount < sortedMovies.length && (
+                                <div className="text-center py-8 text-slate-500 text-sm animate-pulse">
+                                    Loading more...
+                                </div>
+                            )
+                        }
+                    </div >
                 </>
             )}
-        </div>
+        </div >
     );
 };
 

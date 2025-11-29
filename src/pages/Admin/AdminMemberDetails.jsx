@@ -4,6 +4,7 @@ import { doc, getDoc, collection, query, where, getDocs, orderBy } from 'firebas
 import { db } from '../../lib/firebase';
 import { ArrowLeft, Calendar, Mail, Clock, Star, List, Activity, Loader2, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { getUserTitle } from '../../utils/userTitles';
+import SEO from '../../components/SEO';
 
 const AdminMemberDetails = () => {
     const { id } = useParams();
@@ -89,6 +90,7 @@ const AdminMemberDetails = () => {
 
     return (
         <div className="space-y-8 animate-fade-in">
+            <SEO title={`${user.displayName} - CineRank Admin`} />
             {/* Header / Back */}
             <button
                 onClick={() => navigate('/cineadmin')}

@@ -6,6 +6,7 @@ import { discoverMovies, getWatchProviders, IMAGE_BASE_URL } from '../services/a
 import { useAuth } from '../context/AuthContext';
 import { GENRE_ID_MAP } from '../utils/constants';
 import { TrendingUp, Sparkles, Ticket, Calendar, Tv, Loader2, Plus, LogIn } from 'lucide-react';
+import SEO from '../components/SEO';
 
 export const Home = ({ onSignInClick }) => {
     const { selectedRegion, selectedProviders, user, viewAsSignedOut } = useAuth();

@@ -16,6 +16,7 @@ import {
     ChevronDown, Check, Shield, Camera, Edit2, Search, X, Upload, Activity, Eye
 } from 'lucide-react';
 import { getUserTitle } from '../utils/userTitles';
+import SEO from '../components/SEO';
 
 export const Settings = () => {
     const { user, logout, deleteAccount, selectedRegion, setSelectedRegion, selectedProviders, setSelectedProviders } = useAuth();
@@ -164,6 +165,7 @@ export const Settings = () => {
 
     return (
         <main className="max-w-4xl mx-auto space-y-8 animate-fade-in pb-20">
+            <SEO title="Settings - CineRank" />
             {/* ... (header and other sections remain same) ... */}
 
             <div className="space-y-8">

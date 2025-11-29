@@ -461,8 +461,9 @@ const ActorDetails = () => {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-[#020617] flex items-center justify-center">
-                <Loader2 className="animate-spin text-sky-500" size={48} />
+            <div className="min-h-screen flex items-center justify-center">
+                <SEO title="Loading... - CineRank" />
+                <Loader2 className="animate-spin text-sky-500" size={40} />
             </div>
         );
     }
@@ -474,6 +475,7 @@ const ActorDetails = () => {
     return (
         <div className="min-h-screen pb-20 animate-fade-in">
             <SEO
+                key={person.name}
                 title={person.name}
                 description={person.biography}
                 image={`${IMAGE_BASE_URL}${person.profile_path}`}
