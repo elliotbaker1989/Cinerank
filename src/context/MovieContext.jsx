@@ -20,7 +20,6 @@ const INITIAL_LISTS = {
     'scifi': [],
     'romance': [],
     'thriller': [],
-    'thriller': [],
     'documentary': [],
     'actors': [],
 

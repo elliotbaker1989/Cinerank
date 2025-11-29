@@ -7,7 +7,6 @@ import { formatMoney } from '../utils/formatUtils';
 import { useMovieContext } from '../context/MovieContext';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
 
 import { StatsCard } from '../components/StatsCard';
 import { SubscriptionFilter } from '../components/SubscriptionFilter';
